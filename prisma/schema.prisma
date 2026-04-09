@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  email     String   @unique
+  password  String
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Proveedor {
+  id               Int      @id @default(autoincrement())
+  razonSocial      String
+  pais             String
+  ciudad           String
+  direccion        String?
+  distrito         String?
+  codigoPostal     String?
+  referencia       String?
+  rubro            String
+  subrubro         String?
+  entrega          Boolean  @default(false)
+  email            String
+  ruc              String   @unique
+  licencia         String?
+  copiaRucUrl      String?
+  copiaLicenciaUrl String?
+  telefono         String?
+  whatsapp         String?
+  formaPago        String?
+  datosPago        String?
+  representante    String
+  dni              String
+  telefonoRep      String?
+  copiaDniUrl      String?
+  activo           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  pedidos Pedido[]
+}
+
+model Pedido {
+  id             Int          @id @default(autoincrement())
+  numero         String       @unique
+  proveedorId    Int
+  proveedor      Proveedor    @relation(fields: [proveedorId], references: [id])
+  fecha          DateTime
+  estado         EstadoPedido @default(PENDIENTE)
+  tipoEntrega    String?
+  fechaEntrega   DateTime?
+  entregaPuntual Boolean?
+  pagoRealizado  Boolean?
+  importePagado  Float?
+  calidad        Int?
+  respuesta      Int?
+  puntualidad    Int?
+  confianza      Int?
+  presentacion   Int?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  productos ProductoPedido[]
+}
+
+model ProductoPedido {
+  id       Int    @id @default(autoincrement())
+  pedidoId Int
+  pedido   Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  nombre   String
+  cantidad Int
+  precio   Float
+}
+
+enum EstadoPedido {
+  PENDIENTE
+  ACEPTADO
+  RECHAZADO
+  AGOTADO
+}
