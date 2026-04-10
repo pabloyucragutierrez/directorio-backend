@@ -1,15 +1,11 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Habilitar CORS
-  app.enableCors();
-
-  // Validación global
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -18,14 +14,15 @@ async function bootstrap() {
     }),
   );
 
-  // Configuración de Swagger
+  app.enableCors({ origin: '*' });
+
   const config = new DocumentBuilder()
-    .setTitle('API de Autenticación')
-    .setDescription('API REST para autenticación de usuarios con JWT')
+    .setTitle('Directorio de Proveedores API')
+    .setDescription('API para gestión de proveedores y pedidos')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
-  
+
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
