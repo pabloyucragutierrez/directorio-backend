@@ -30,4 +30,4 @@ async function bootstrap() {
   console.log('Backend corriendo en http://localhost:3001');
   console.log('Swagger en http://localhost:3001/api');
 }
-bootstrap();    
+bootstrap();      
