@@ -43,7 +43,7 @@ export class UsersService {
     const { password, ...result } = user;
     return result;
   }
-
+ 
   async remove(id: number) {
     await this.findOne(id);
     await this.prisma.user.update({ where: { id }, data: { activo: false } });
