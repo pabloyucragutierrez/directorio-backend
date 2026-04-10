@@ -22,4 +22,4 @@ export class CreateProductoProveedorDto {
   @IsOptional()
   @IsString()
   fotoUrl?: string;
-}
+} 
