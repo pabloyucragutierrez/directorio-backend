@@ -15,11 +15,13 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
 
     if (!user || !user.activo) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException('Correo o contraseña incorrectos');
     }
 
     const valid = await bcrypt.compare(dto.password, user.password);
-    if (!valid) throw new UnauthorizedException('Credenciales inválidas');
+    if (!valid) {
+      throw new UnauthorizedException('Correo o contraseña incorrectos');
+    }
 
     const token = this.jwtService.sign({ sub: user.id, email: user.email });
 
