@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
+import { CreateProductoProveedorDto } from './dto/create-producto-proveedor.dto';
 import { UploadService } from '../upload/upload.service';
 
 @Injectable()
@@ -40,7 +41,9 @@ export class ProveedoresService {
   async findOne(id: number) {
     const proveedor = await this.prisma.proveedor.findUnique({
       where: { id },
-      include: { pedidos: { orderBy: { createdAt: 'desc' } } },
+      include: {
+        pedidos: { orderBy: { createdAt: 'desc' } },
+      },
     });
     if (!proveedor) throw new NotFoundException('Proveedor no encontrado');
     return proveedor;
@@ -96,5 +99,50 @@ export class ProveedoresService {
     const tasaEntrega = pedidosTotales > 0 ? Math.round((pedidosCompletados / pedidosTotales) * 100) : 0;
 
     return { totalProveedores, pedidosEsteMes, calificacionPromedio, tasaEntrega };
+  }
+
+  // ── Productos del proveedor ────────────────────────────────────────────────
+
+  async getProductos(proveedorId: number) {
+    await this.findOne(proveedorId);
+    return this.prisma.productoProveedor.findMany({
+      where: { proveedorId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async createProducto(proveedorId: number, dto: CreateProductoProveedorDto, foto?: Express.Multer.File) {
+    await this.findOne(proveedorId);
+    const fotoUrl = foto ? await this.uploadService.uploadFile(foto, 'proveedores/productos') : undefined;
+    return this.prisma.productoProveedor.create({
+      data: { proveedorId, nombre: dto.nombre, precio: dto.precio, fotoUrl },
+    });
+  }
+
+  async updateProducto(proveedorId: number, productoId: number, dto: CreateProductoProveedorDto, foto?: Express.Multer.File) {
+    const producto = await this.prisma.productoProveedor.findFirst({
+      where: { id: productoId, proveedorId },
+    });
+    if (!producto) throw new NotFoundException('Producto no encontrado');
+
+    const fotoUrl = foto ? await this.uploadService.uploadFile(foto, 'proveedores/productos') : undefined;
+
+    return this.prisma.productoProveedor.update({
+      where: { id: productoId },
+      data: {
+        nombre: dto.nombre,
+        precio: dto.precio,
+        ...(fotoUrl && { fotoUrl }),
+      },
+    });
+  }
+
+  async deleteProducto(proveedorId: number, productoId: number) {
+    const producto = await this.prisma.productoProveedor.findFirst({
+      where: { id: productoId, proveedorId },
+    });
+    if (!producto) throw new NotFoundException('Producto no encontrado');
+    await this.prisma.productoProveedor.delete({ where: { id: productoId } });
+    return { message: 'Producto eliminado' };
   }
 }

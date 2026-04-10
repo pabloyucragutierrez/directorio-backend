@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe, Query, UseInterceptors, UploadedFiles } from '@nestjs/common';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import {
+  Controller, Get, Post, Body, Patch, Param, Delete,
+  UseGuards, ParseIntPipe, Query, UseInterceptors, UploadedFiles, UploadedFile,
+} from '@nestjs/common';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiQuery } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { ProveedoresService } from './proveedores.service';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
+import { CreateProductoProveedorDto } from './dto/create-producto-proveedor.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('Proveedores')
@@ -68,5 +72,47 @@ export class ProveedoresController {
   @ApiOperation({ summary: 'Desactivar proveedor' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.proveedoresService.remove(id);
+  }
+
+  // ── Productos del proveedor ────────────────────────────────────────────────
+
+  @Get(':id/productos')
+  @ApiOperation({ summary: 'Listar productos del proveedor' })
+  getProductos(@Param('id', ParseIntPipe) id: number) {
+    return this.proveedoresService.getProductos(id);
+  }
+
+  @Post(':id/productos')
+  @ApiOperation({ summary: 'Crear producto del proveedor' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('foto', { storage: memoryStorage() }))
+  createProducto(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateProductoProveedorDto,
+    @UploadedFile() foto?: Express.Multer.File,
+  ) {
+    return this.proveedoresService.createProducto(id, dto, foto);
+  }
+
+  @Patch(':id/productos/:productoId')
+  @ApiOperation({ summary: 'Actualizar producto del proveedor' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('foto', { storage: memoryStorage() }))
+  updateProducto(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('productoId', ParseIntPipe) productoId: number,
+    @Body() dto: CreateProductoProveedorDto,
+    @UploadedFile() foto?: Express.Multer.File,
+  ) {
+    return this.proveedoresService.updateProducto(id, productoId, dto, foto);
+  }
+
+  @Delete(':id/productos/:productoId')
+  @ApiOperation({ summary: 'Eliminar producto del proveedor' })
+  deleteProducto(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('productoId', ParseIntPipe) productoId: number,
+  ) {
+    return this.proveedoresService.deleteProducto(id, productoId);
   }
 }
