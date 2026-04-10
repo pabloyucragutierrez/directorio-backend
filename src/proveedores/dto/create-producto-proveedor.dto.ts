@@ -7,6 +7,11 @@ export class CreateProductoProveedorDto {
   @IsString()
   nombre!: string;
 
+  @ApiPropertyOptional({ example: 'Camisa de algodón 100%, disponible en tallas S, M, L' })
+  @IsOptional()
+  @IsString()
+  descripcion?: string;
+
   @ApiProperty({ example: 35.00 })
   @IsNumber()
   @IsPositive()

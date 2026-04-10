@@ -5,7 +5,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -47,8 +46,8 @@ model Proveedor {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  pedidos          Pedido[]
-  productos        ProductoProveedor[]
+  pedidos   Pedido[]
+  productos ProductoProveedor[]
 }
 
 model ProductoProveedor {
@@ -56,6 +55,7 @@ model ProductoProveedor {
   proveedorId Int
   proveedor   Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
   nombre      String
+  descripcion String?
   precio      Float
   fotoUrl     String?
   createdAt   DateTime  @default(now())
@@ -82,7 +82,7 @@ model Pedido {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  productos      ProductoPedido[]
+  productos ProductoPedido[]
 }
 
 model ProductoPedido {
