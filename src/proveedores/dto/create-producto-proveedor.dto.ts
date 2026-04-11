@@ -10,6 +10,7 @@ export class CreateProductoProveedorDto {
   @ApiPropertyOptional({ example: 'Camisa de algodón 100%, disponible en tallas S, M, L' })
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (value === '' || value === null ? undefined : value))
   descripcion?: string;
 
   @ApiProperty({ example: 35.00 })
@@ -22,4 +23,4 @@ export class CreateProductoProveedorDto {
   @IsOptional()
   @IsString()
   fotoUrl?: string;
-} 
+}

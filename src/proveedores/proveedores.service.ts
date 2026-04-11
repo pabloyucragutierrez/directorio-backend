@@ -115,7 +115,13 @@ export class ProveedoresService {
     await this.findOne(proveedorId);
     const fotoUrl = foto ? await this.uploadService.uploadFile(foto, 'proveedores/productos') : undefined;
     return this.prisma.productoProveedor.create({
-      data: { proveedorId, nombre: dto.nombre, precio: dto.precio, fotoUrl },
+      data: {
+        proveedorId,
+        nombre: dto.nombre,
+        descripcion: dto.descripcion ?? null,
+        precio: dto.precio,
+        fotoUrl,
+      },
     });
   }
 
@@ -131,6 +137,7 @@ export class ProveedoresService {
       where: { id: productoId },
       data: {
         nombre: dto.nombre,
+        descripcion: dto.descripcion ?? null,
         precio: dto.precio,
         ...(fotoUrl && { fotoUrl }),
       },
