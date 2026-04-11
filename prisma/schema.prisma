@@ -52,15 +52,16 @@ model Proveedor {
 }
 
 model ProductoProveedor {
-  id          Int       @id @default(autoincrement())
-  proveedorId Int
-  proveedor   Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
-  nombre      String
-  descripcion String?
-  precio      Float
-  fotoUrl     String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             Int       @id @default(autoincrement())
+  proveedorId    Int
+  proveedor      Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  nombre         String
+  descripcion    String?
+  precioNacional Float?
+  precioDolar    Float?
+  fotoUrl        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model Pedido {

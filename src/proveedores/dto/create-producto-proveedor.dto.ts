@@ -1,9 +1,9 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsNumber, IsPositive, IsOptional } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateProductoProveedorDto {
-  @ApiProperty({ example: 'Camisa manga corta' })
+  @ApiPropertyOptional({ example: 'Camisa manga corta' })
   @IsString()
   nombre!: string;
 
@@ -13,11 +13,19 @@ export class CreateProductoProveedorDto {
   @Transform(({ value }) => (value === '' || value === null ? undefined : value))
   descripcion?: string;
 
-  @ApiProperty({ example: 35.00 })
+  @ApiPropertyOptional({ example: 120.00 })
+  @IsOptional()
   @IsNumber()
   @IsPositive()
-  @Transform(({ value }) => Number(value))
-  precio!: number;
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : Number(value)))
+  precioNacional?: number;
+
+  @ApiPropertyOptional({ example: 35.00 })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : Number(value)))
+  precioDolar?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

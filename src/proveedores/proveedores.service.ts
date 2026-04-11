@@ -119,7 +119,8 @@ export class ProveedoresService {
         proveedorId,
         nombre: dto.nombre,
         descripcion: dto.descripcion ?? null,
-        precio: dto.precio,
+        precioNacional: dto.precioNacional ?? null,
+        precioDolar: dto.precioDolar ?? null,
         fotoUrl,
       },
     });
@@ -138,7 +139,8 @@ export class ProveedoresService {
       data: {
         nombre: dto.nombre,
         descripcion: dto.descripcion ?? null,
-        precio: dto.precio,
+        precioNacional: dto.precioNacional ?? null,
+        precioDolar: dto.precioDolar ?? null,
         ...(fotoUrl && { fotoUrl }),
       },
     });
