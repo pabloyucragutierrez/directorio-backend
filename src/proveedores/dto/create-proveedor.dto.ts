@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsBoolean, IsOptional } from 'class-validator';
+import { IsString, IsEmail, IsBoolean, IsOptional, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateProveedorDto {
@@ -35,9 +35,10 @@ export class CreateProveedorDto {
   @IsString()
   referencia?: string;
 
-  @ApiProperty({ example: 'Alimentos y Bebidas' })
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  rubro!: string;
+  rubro?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -50,13 +51,15 @@ export class CreateProveedorDto {
   @Transform(({ value }) => value === 'true' || value === true)
   entrega?: boolean;
 
-  @ApiProperty({ example: 'contacto@xyz.com' })
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsEmail()
-  email!: string;
+  email?: string;
 
-  @ApiProperty({ example: '20512345678' })
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  ruc!: string;
+  ruc?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -83,16 +86,27 @@ export class CreateProveedorDto {
   @IsString()
   datosPago?: string;
 
-  @ApiProperty({ example: 'Juan Pérez' })
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  representante!: string;
+  representante?: string;
 
-  @ApiProperty({ example: '12345678' })
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  dni!: string;
+  dni?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   telefonoRep?: string;
+
+  @ApiProperty({ example: 'IMPO-123456' })
+  @IsString()
+  usuarioAcceso!: string;
+
+  @ApiProperty({ example: 'miPassword123' })
+  @IsString()
+  @MinLength(6)
+  passwordAcceso!: string;
 }

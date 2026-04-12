@@ -10,6 +10,11 @@ export class UpdatePedidoDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  comentario?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   tipoEntrega?: string;
 
   @ApiPropertyOptional({ example: '2025-04-05T14:00:00.000Z' })

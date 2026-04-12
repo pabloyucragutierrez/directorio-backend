@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsInt, IsArray, ValidateNested, IsNumber, IsPositive } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsInt, IsArray, ValidateNested, IsNumber, IsPositive, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ProductoPedidoDto {
@@ -19,9 +19,10 @@ export class ProductoPedidoDto {
 }
 
 export class CreatePedidoDto {
-  @ApiProperty({ example: 'PED-0001' })
+  @ApiPropertyOptional({ example: 'PED-000001' })
+  @IsOptional()
   @IsString()
-  numero!: string;
+  numero?: string;
 
   @ApiProperty({ example: 1 })
   @IsInt()
@@ -30,6 +31,11 @@ export class CreatePedidoDto {
   @ApiProperty({ example: '2025-04-01T09:30:00.000Z' })
   @IsString()
   fecha!: string;
+
+  @ApiPropertyOptional({ example: 'Por favor entregar en horario de mañana' })
+  @IsOptional()
+  @IsString()
+  comentario?: string;
 
   @ApiProperty({ type: [ProductoPedidoDto] })
   @IsArray()

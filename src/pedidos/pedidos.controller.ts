@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, ParseIntPipe, Query, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PedidosService } from './pedidos.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
@@ -31,6 +31,22 @@ export class PedidosController {
   @ApiQuery({ name: 'hasta', required: false })
   getReporte(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
     return this.pedidosService.getReporte(desde, hasta);
+  }
+
+  @Get('mis-pedidos')
+  @ApiOperation({ summary: 'Pedidos del proveedor autenticado' })
+  misPedidos(@Request() req: any) {
+    return this.pedidosService.findByProveedor(req.user.id);
+  }
+
+  @Post(':id/responder')
+  @ApiOperation({ summary: 'Proveedor acepta o rechaza pedido' })
+  responder(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('accion') accion: 'ACEPTADO' | 'RECHAZADO',
+    @Request() req: any,
+  ) {
+    return this.pedidosService.responderPedido(id, req.user.id, accion);
   }
 
   @Get(':id')

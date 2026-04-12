@@ -1,0 +1,15 @@
+-- DropIndex
+DROP INDEX "Proveedor_ruc_key";
+
+-- AlterTable
+ALTER TABLE "ProductoProveedor" ADD COLUMN     "moneda" TEXT;
+
+-- AlterTable
+ALTER TABLE "Proveedor" ALTER COLUMN "rubro" DROP NOT NULL,
+ALTER COLUMN "entrega" DROP NOT NULL,
+ALTER COLUMN "entrega" DROP DEFAULT,
+ALTER COLUMN "entrega" SET DATA TYPE TEXT,
+ALTER COLUMN "email" DROP NOT NULL,
+ALTER COLUMN "ruc" DROP NOT NULL,
+ALTER COLUMN "representante" DROP NOT NULL,
+ALTER COLUMN "dni" DROP NOT NULL;

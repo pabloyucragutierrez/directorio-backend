@@ -5,7 +5,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -27,11 +26,11 @@ model Proveedor {
   distrito         String?
   codigoPostal     String?
   referencia       String?
-  rubro            String
+  rubro            String?
   subrubro         String?
-  entrega          Boolean  @default(false)
-  email            String
-  ruc              String   @unique
+  entrega          Boolean? @default(false)
+  email            String?
+  ruc              String?
   licencia         String?
   copiaRucUrl      String?
   copiaLicenciaUrl String?
@@ -39,11 +38,13 @@ model Proveedor {
   whatsapp         String?
   formaPago        String?
   datosPago        String?
-  representante    String
-  dni              String
+  representante    String?
+  dni              String?
   telefonoRep      String?
   copiaDniUrl      String?
   activo           Boolean  @default(true)
+  usuarioAcceso    String?  @unique
+  passwordAcceso   String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -59,6 +60,7 @@ model ProductoProveedor {
   descripcion    String?
   precioNacional Float?
   precioDolar    Float?
+  moneda         String?
   fotoUrl        String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -71,6 +73,7 @@ model Pedido {
   proveedor      Proveedor    @relation(fields: [proveedorId], references: [id])
   fecha          DateTime
   estado         EstadoPedido @default(PENDIENTE)
+  comentario     String?
   tipoEntrega    String?
   fechaEntrega   DateTime?
   entregaPuntual Boolean?

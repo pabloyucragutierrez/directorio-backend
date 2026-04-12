@@ -4,6 +4,7 @@ import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
 import { CreateProductoProveedorDto } from './dto/create-producto-proveedor.dto';
 import { UploadService } from '../upload/upload.service';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class ProveedoresService {
@@ -12,28 +13,58 @@ export class ProveedoresService {
     private uploadService: UploadService,
   ) {}
 
-  async create(dto: CreateProveedorDto, files: { copiaRuc?: Express.Multer.File[]; copiaLicencia?: Express.Multer.File[]; copiaDni?: Express.Multer.File[] }) {
-    const exists = await this.prisma.proveedor.findUnique({ where: { ruc: dto.ruc } });
-    if (exists) throw new ConflictException('Ya existe un proveedor con ese RUC');
+  async create(
+    dto: CreateProveedorDto,
+    files: {
+      copiaRuc?: Express.Multer.File[];
+      copiaLicencia?: Express.Multer.File[];
+      copiaDni?: Express.Multer.File[];
+    },
+  ) {
+    if (dto.ruc) {
+      const existsRuc = await this.prisma.proveedor.findFirst({ where: { ruc: dto.ruc } });
+      if (existsRuc) throw new ConflictException('Ya existe un proveedor con ese RUC');
+    }
 
-    const copiaRucUrl = files?.copiaRuc?.[0] ? await this.uploadService.uploadFile(files.copiaRuc[0], 'proveedores/ruc') : undefined;
-    const copiaLicenciaUrl = files?.copiaLicencia?.[0] ? await this.uploadService.uploadFile(files.copiaLicencia[0], 'proveedores/licencias') : undefined;
-    const copiaDniUrl = files?.copiaDni?.[0] ? await this.uploadService.uploadFile(files.copiaDni[0], 'proveedores/dni') : undefined;
+    const existsUsuario = await this.prisma.proveedor.findUnique({
+      where: { usuarioAcceso: dto.usuarioAcceso },
+    });
+    if (existsUsuario) throw new ConflictException('Ese usuario de acceso ya está en uso');
+
+    const copiaRucUrl = files?.copiaRuc?.[0]
+      ? await this.uploadService.uploadFile(files.copiaRuc[0], 'proveedores/ruc')
+      : undefined;
+    const copiaLicenciaUrl = files?.copiaLicencia?.[0]
+      ? await this.uploadService.uploadFile(files.copiaLicencia[0], 'proveedores/licencias')
+      : undefined;
+    const copiaDniUrl = files?.copiaDni?.[0]
+      ? await this.uploadService.uploadFile(files.copiaDni[0], 'proveedores/dni')
+      : undefined;
+
+    const passwordHash = await bcrypt.hash(dto.passwordAcceso, 10);
 
     return this.prisma.proveedor.create({
-      data: { ...dto, copiaRucUrl, copiaLicenciaUrl, copiaDniUrl },
+      data: {
+        ...dto,
+        passwordAcceso: passwordHash,
+        copiaRucUrl,
+        copiaLicenciaUrl,
+        copiaDniUrl,
+      },
     });
   }
 
   async findAll(search?: string) {
     return this.prisma.proveedor.findMany({
-      where: search ? {
-        OR: [
-          { razonSocial: { contains: search, mode: 'insensitive' } },
-          { pais: { contains: search, mode: 'insensitive' } },
-          { ruc: { contains: search } },
-        ],
-      } : undefined,
+      where: search
+        ? {
+            OR: [
+              { razonSocial: { contains: search, mode: 'insensitive' } },
+              { pais: { contains: search, mode: 'insensitive' } },
+              { ruc: { contains: search } },
+            ],
+          }
+        : undefined,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -41,30 +72,45 @@ export class ProveedoresService {
   async findOne(id: number) {
     const proveedor = await this.prisma.proveedor.findUnique({
       where: { id },
-      include: {
-        pedidos: { orderBy: { createdAt: 'desc' } },
-      },
+      include: { pedidos: { orderBy: { createdAt: 'desc' } } },
     });
     if (!proveedor) throw new NotFoundException('Proveedor no encontrado');
     return proveedor;
   }
 
-  async update(id: number, dto: UpdateProveedorDto, files: { copiaRuc?: Express.Multer.File[]; copiaLicencia?: Express.Multer.File[]; copiaDni?: Express.Multer.File[] }) {
+  async update(
+    id: number,
+    dto: UpdateProveedorDto,
+    files: {
+      copiaRuc?: Express.Multer.File[];
+      copiaLicencia?: Express.Multer.File[];
+      copiaDni?: Express.Multer.File[];
+    },
+  ) {
     await this.findOne(id);
 
-    const copiaRucUrl = files?.copiaRuc?.[0] ? await this.uploadService.uploadFile(files.copiaRuc[0], 'proveedores/ruc') : undefined;
-    const copiaLicenciaUrl = files?.copiaLicencia?.[0] ? await this.uploadService.uploadFile(files.copiaLicencia[0], 'proveedores/licencias') : undefined;
-    const copiaDniUrl = files?.copiaDni?.[0] ? await this.uploadService.uploadFile(files.copiaDni[0], 'proveedores/dni') : undefined;
+    const copiaRucUrl = files?.copiaRuc?.[0]
+      ? await this.uploadService.uploadFile(files.copiaRuc[0], 'proveedores/ruc')
+      : undefined;
+    const copiaLicenciaUrl = files?.copiaLicencia?.[0]
+      ? await this.uploadService.uploadFile(files.copiaLicencia[0], 'proveedores/licencias')
+      : undefined;
+    const copiaDniUrl = files?.copiaDni?.[0]
+      ? await this.uploadService.uploadFile(files.copiaDni[0], 'proveedores/dni')
+      : undefined;
 
-    return this.prisma.proveedor.update({
-      where: { id },
-      data: {
-        ...dto,
-        ...(copiaRucUrl && { copiaRucUrl }),
-        ...(copiaLicenciaUrl && { copiaLicenciaUrl }),
-        ...(copiaDniUrl && { copiaDniUrl }),
-      },
-    });
+    const data: any = {
+      ...dto,
+      ...(copiaRucUrl && { copiaRucUrl }),
+      ...(copiaLicenciaUrl && { copiaLicenciaUrl }),
+      ...(copiaDniUrl && { copiaDniUrl }),
+    };
+
+    if (dto.passwordAcceso) {
+      data.passwordAcceso = await bcrypt.hash(dto.passwordAcceso, 10);
+    }
+
+    return this.prisma.proveedor.update({ where: { id }, data });
   }
 
   async remove(id: number) {
@@ -77,26 +123,40 @@ export class ProveedoresService {
 
     const pedidosEsteMes = await this.prisma.pedido.count({
       where: {
-        createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
+        createdAt: {
+          gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        },
       },
     });
 
     const calificaciones = await this.prisma.pedido.findMany({
       where: { calidad: { not: null } },
-      select: { calidad: true, respuesta: true, puntualidad: true, confianza: true, presentacion: true },
+      select: {
+        calidad: true,
+        respuesta: true,
+        puntualidad: true,
+        confianza: true,
+        presentacion: true,
+      },
     });
 
     let calificacionPromedio = 0;
     if (calificaciones.length > 0) {
-      const suma = calificaciones.reduce((acc, p) => {
-        return acc + ((p.calidad ?? 0) + (p.respuesta ?? 0) + (p.puntualidad ?? 0) + (p.confianza ?? 0) + (p.presentacion ?? 0)) / 5;
-      }, 0);
+      const suma = calificaciones.reduce(
+        (acc, p) =>
+          acc +
+          ((p.calidad ?? 0) + (p.respuesta ?? 0) + (p.puntualidad ?? 0) +
+            (p.confianza ?? 0) + (p.presentacion ?? 0)) / 5,
+        0,
+      );
       calificacionPromedio = Math.round((suma / calificaciones.length) * 10) / 10;
     }
 
     const pedidosTotales = await this.prisma.pedido.count();
     const pedidosCompletados = await this.prisma.pedido.count({ where: { estado: 'ACEPTADO' } });
-    const tasaEntrega = pedidosTotales > 0 ? Math.round((pedidosCompletados / pedidosTotales) * 100) : 0;
+    const tasaEntrega = pedidosTotales > 0
+      ? Math.round((pedidosCompletados / pedidosTotales) * 100)
+      : 0;
 
     return { totalProveedores, pedidosEsteMes, calificacionPromedio, tasaEntrega };
   }
@@ -111,14 +171,21 @@ export class ProveedoresService {
     });
   }
 
-  async createProducto(proveedorId: number, dto: CreateProductoProveedorDto, foto?: Express.Multer.File) {
+  async createProducto(
+    proveedorId: number,
+    dto: CreateProductoProveedorDto,
+    foto?: Express.Multer.File,
+  ) {
     await this.findOne(proveedorId);
-    const fotoUrl = foto ? await this.uploadService.uploadFile(foto, 'proveedores/productos') : undefined;
+    const fotoUrl = foto
+      ? await this.uploadService.uploadFile(foto, 'proveedores/productos')
+      : undefined;
     return this.prisma.productoProveedor.create({
       data: {
         proveedorId,
         nombre: dto.nombre,
         descripcion: dto.descripcion ?? null,
+        moneda: dto.moneda ?? null,
         precioNacional: dto.precioNacional ?? null,
         precioDolar: dto.precioDolar ?? null,
         fotoUrl,
@@ -126,19 +193,27 @@ export class ProveedoresService {
     });
   }
 
-  async updateProducto(proveedorId: number, productoId: number, dto: CreateProductoProveedorDto, foto?: Express.Multer.File) {
+  async updateProducto(
+    proveedorId: number,
+    productoId: number,
+    dto: CreateProductoProveedorDto,
+    foto?: Express.Multer.File,
+  ) {
     const producto = await this.prisma.productoProveedor.findFirst({
       where: { id: productoId, proveedorId },
     });
     if (!producto) throw new NotFoundException('Producto no encontrado');
 
-    const fotoUrl = foto ? await this.uploadService.uploadFile(foto, 'proveedores/productos') : undefined;
+    const fotoUrl = foto
+      ? await this.uploadService.uploadFile(foto, 'proveedores/productos')
+      : undefined;
 
     return this.prisma.productoProveedor.update({
       where: { id: productoId },
       data: {
         nombre: dto.nombre,
         descripcion: dto.descripcion ?? null,
+        moneda: dto.moneda ?? null,
         precioNacional: dto.precioNacional ?? null,
         precioDolar: dto.precioDolar ?? null,
         ...(fotoUrl && { fotoUrl }),
