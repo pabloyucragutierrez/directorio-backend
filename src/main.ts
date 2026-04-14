@@ -27,7 +27,7 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   // 🔥 CLAVE PARA RAILWAY
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 3001;
 
   await app.listen(port, '0.0.0.0');
 
