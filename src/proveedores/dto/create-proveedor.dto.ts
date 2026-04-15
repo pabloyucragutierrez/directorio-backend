@@ -101,12 +101,23 @@ export class CreateProveedorDto {
   @IsString()
   telefonoRep?: string;
 
-  @ApiProperty({ example: 'IMPO-123456' })
+  @ApiPropertyOptional({ example: 'Comentario adicional' })
+  @IsOptional()
   @IsString()
-  usuarioAcceso!: string;
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  comentarios?: string;
 
-  @ApiProperty({ example: 'miPassword123' })
+  // Campos de acceso (legacy). Ya no son obligatorios para crear un proveedor.
+  @ApiPropertyOptional({ example: 'IMPO-123456' })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  usuarioAcceso?: string;
+
+  @ApiPropertyOptional({ example: 'miPassword123' })
+  @IsOptional()
   @IsString()
   @MinLength(6)
-  passwordAcceso!: string;
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  passwordAcceso?: string;
 }

@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
 import { CreateProductoProveedorDto } from './dto/create-producto-proveedor.dto';
 import { UploadService } from '../upload/upload.service';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -21,15 +22,23 @@ export class ProveedoresService {
       copiaDni?: Express.Multer.File[];
     },
   ) {
+    const { comentarios, ...dtoRest } = dto as any;
+
+    if ((dtoRest.usuarioAcceso && !dtoRest.passwordAcceso) || (!dtoRest.usuarioAcceso && dtoRest.passwordAcceso)) {
+      throw new BadRequestException('usuarioAcceso y passwordAcceso deben enviarse juntos');
+    }
+
     if (dto.ruc) {
       const existsRuc = await this.prisma.proveedor.findFirst({ where: { ruc: dto.ruc } });
       if (existsRuc) throw new ConflictException('Ya existe un proveedor con ese RUC');
     }
 
-    const existsUsuario = await this.prisma.proveedor.findUnique({
-      where: { usuarioAcceso: dto.usuarioAcceso },
-    });
-    if (existsUsuario) throw new ConflictException('Ese usuario de acceso ya está en uso');
+    if (dtoRest.usuarioAcceso) {
+      const existsUsuario = await this.prisma.proveedor.findUnique({
+        where: { usuarioAcceso: dtoRest.usuarioAcceso },
+      });
+      if (existsUsuario) throw new ConflictException('Ese usuario de acceso ya está en uso');
+    }
 
     const copiaRucUrl = files?.copiaRuc?.[0]
       ? await this.uploadService.uploadFile(files.copiaRuc[0], 'proveedores/ruc')
@@ -41,12 +50,12 @@ export class ProveedoresService {
       ? await this.uploadService.uploadFile(files.copiaDni[0], 'proveedores/dni')
       : undefined;
 
-    const passwordHash = await bcrypt.hash(dto.passwordAcceso, 10);
+    const passwordHash = dtoRest.passwordAcceso ? await bcrypt.hash(dtoRest.passwordAcceso, 10) : undefined;
 
     return this.prisma.proveedor.create({
       data: {
-        ...dto,
-        passwordAcceso: passwordHash,
+        ...dtoRest,
+        ...(passwordHash && { passwordAcceso: passwordHash }),
         copiaRucUrl,
         copiaLicenciaUrl,
         copiaDniUrl,
@@ -99,15 +108,17 @@ export class ProveedoresService {
       ? await this.uploadService.uploadFile(files.copiaDni[0], 'proveedores/dni')
       : undefined;
 
+    const { comentarios, ...dtoRest } = dto as any;
+
     const data: any = {
-      ...dto,
+      ...dtoRest,
       ...(copiaRucUrl && { copiaRucUrl }),
       ...(copiaLicenciaUrl && { copiaLicenciaUrl }),
       ...(copiaDniUrl && { copiaDniUrl }),
     };
 
-    if (dto.passwordAcceso) {
-      data.passwordAcceso = await bcrypt.hash(dto.passwordAcceso, 10);
+    if (dtoRest.passwordAcceso) {
+      data.passwordAcceso = await bcrypt.hash(dtoRest.passwordAcceso, 10);
     }
 
     return this.prisma.proveedor.update({ where: { id }, data });
@@ -115,7 +126,45 @@ export class ProveedoresService {
 
   async remove(id: number) {
     await this.findOne(id);
-    return this.prisma.proveedor.update({ where: { id }, data: { activo: false } });
+
+    // Verificar si tiene pedidos
+    const pedidosCount = await this.prisma.pedido.count({ where: { proveedorId: id } });
+    if (pedidosCount > 0) {
+      throw new ConflictException(
+        `Este proveedor tiene ${pedidosCount} pedido(s) asociado(s). Debes eliminar los pedidos antes de eliminar el proveedor.`,
+      );
+    }
+
+    // Desvincula usuarios asociados antes de eliminar
+    await this.prisma.user.updateMany({
+      where: { proveedorId: id },
+      data: { proveedorId: null },
+    });
+
+    try {
+      await this.prisma.proveedor.delete({ where: { id } });
+      return { message: 'Proveedor eliminado correctamente' };
+    } catch (err: unknown) {
+      // Respaldo: si por alguna razón falla por una FK (por ejemplo, pedidos creados en paralelo),
+      // devolvemos un mensaje claro para el frontend.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+        throw new ConflictException(
+          'No se puede eliminar el proveedor porque tiene registros asociados (por ejemplo, pedidos).',
+        );
+      }
+      throw err;
+    }
+  }
+
+  async removePedidos(id: number) {
+    await this.findOne(id);
+    // Eliminar productos de cada pedido primero (cascade debería manejarlo, pero por seguridad)
+    const pedidos = await this.prisma.pedido.findMany({ where: { proveedorId: id }, select: { id: true } });
+    for (const pedido of pedidos) {
+      await this.prisma.productoPedido.deleteMany({ where: { pedidoId: pedido.id } });
+    }
+    const deleted = await this.prisma.pedido.deleteMany({ where: { proveedorId: id } });
+    return { message: `${deleted.count} pedido(s) eliminado(s) correctamente` };
   }
 
   async getStats() {
@@ -160,8 +209,6 @@ export class ProveedoresService {
 
     return { totalProveedores, pedidosEsteMes, calificacionPromedio, tasaEntrega };
   }
-
-  // ── Productos del proveedor ────────────────────────────────────────────────
 
   async getProductos(proveedorId: number) {
     await this.findOne(proveedorId);

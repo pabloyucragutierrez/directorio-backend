@@ -69,9 +69,15 @@ export class ProveedoresController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Desactivar proveedor' })
+  @ApiOperation({ summary: 'Eliminar proveedor' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.proveedoresService.remove(id);
+  }
+
+  @Delete(':id/pedidos')
+  @ApiOperation({ summary: 'Eliminar todos los pedidos de un proveedor' })
+  removePedidos(@Param('id', ParseIntPipe) id: number) {
+    return this.proveedoresService.removePedidos(id);
   }
 
   // ── Productos del proveedor ────────────────────────────────────────────────

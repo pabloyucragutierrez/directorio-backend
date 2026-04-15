@@ -101,6 +101,12 @@ export class PedidosService {
     });
   }
 
+  async remove(id: number) {
+    await this.findOne(id);
+    await this.prisma.pedido.delete({ where: { id } });
+    return { message: 'Pedido eliminado correctamente' };
+  }
+
   async getReporte(desde?: string, hasta?: string) {
     const proveedores = await this.prisma.proveedor.findMany({
       include: {
