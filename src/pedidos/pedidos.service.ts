@@ -170,4 +170,84 @@ export class PedidosService {
       return { proveedor: p.razonSocial, pais: p.pais, total, completados, calificacion };
     });
   }
+
+  async getReportePaged(params: { desde?: string; hasta?: string; cursor?: number; limit?: number }) {
+    const { desde, hasta } = params;
+    const cursor = params.cursor;
+
+    const limit = params.limit ?? 20;
+    if (!Number.isFinite(limit) || limit <= 0) throw new BadRequestException('limit invalido');
+    const take = Math.min(Math.floor(limit), 100);
+
+    if (cursor != null && (!Number.isFinite(cursor) || cursor <= 0)) {
+      throw new BadRequestException('cursor invalido');
+    }
+
+    const proveedores = await this.prisma.proveedor.findMany({
+      select: {
+        id: true,
+        razonSocial: true,
+        pais: true,
+        pedidos: {
+          where: (desde || hasta)
+            ? {
+                fecha: {
+                  ...(desde && { gte: new Date(desde) }),
+                  ...(hasta && { lte: new Date(hasta) }),
+                },
+              }
+            : undefined,
+          select: {
+            estado: true,
+            calidad: true,
+            respuesta: true,
+            puntualidad: true,
+            confianza: true,
+            presentacion: true,
+          },
+        },
+      },
+      orderBy: { id: 'desc' },
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: take + 1,
+    });
+
+    const hasMore = proveedores.length > take;
+    const rows = hasMore ? proveedores.slice(0, take) : proveedores;
+
+    const items = rows.map((proveedor) => {
+      const total = proveedor.pedidos.length;
+      const completados = proveedor.pedidos.filter((pedido) => pedido.estado === 'ACEPTADO').length;
+      const cals = proveedor.pedidos.filter((pedido) => pedido.calidad !== null && pedido.calidad > 0);
+      const calificacion = cals.length > 0
+        ? Math.round(
+            (cals.reduce(
+              (acc, pedido) =>
+                acc +
+                ((pedido.calidad ?? 0) +
+                  (pedido.respuesta ?? 0) +
+                  (pedido.puntualidad ?? 0) +
+                  (pedido.confianza ?? 0) +
+                  (pedido.presentacion ?? 0)) / 5,
+              0,
+            ) /
+              cals.length) *
+              10,
+          ) / 10
+        : 0;
+
+      return {
+        id: proveedor.id,
+        proveedor: proveedor.razonSocial,
+        pais: proveedor.pais,
+        total,
+        completados,
+        calificacion,
+      };
+    });
+
+    const nextCursor = rows.length > 0 ? rows[rows.length - 1].id : null;
+
+    return { items, hasMore, nextCursor };
+  }
 }

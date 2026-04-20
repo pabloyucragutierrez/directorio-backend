@@ -50,6 +50,26 @@ export class PedidosController {
     return this.pedidosService.getReporte(desde, hasta);
   }
 
+  @Get('reporte-paged')
+  @ApiOperation({ summary: 'Reporte por proveedor (paginado para scroll)' })
+  @ApiQuery({ name: 'desde', required: false })
+  @ApiQuery({ name: 'hasta', required: false })
+  @ApiQuery({ name: 'cursor', required: false, description: 'ID del ultimo proveedor recibido' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Cantidad de items por pagina (default 20, max 100)' })
+  getReportePaged(
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.pedidosService.getReportePaged({
+      desde,
+      hasta,
+      cursor: cursor ? Number(cursor) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   @Get('mis-pedidos')
   @ApiOperation({ summary: 'Pedidos del proveedor autenticado' })
   misPedidos(@Request() req: any) {
