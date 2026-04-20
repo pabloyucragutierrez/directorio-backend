@@ -22,7 +22,7 @@ export class ProveedoresService {
       copiaDni?: Express.Multer.File[];
     },
   ) {
-    const { comentarios, ...dtoRest } = dto as any;
+    const dtoRest = dto as any;
 
     if ((dtoRest.usuarioAcceso && !dtoRest.passwordAcceso) || (!dtoRest.usuarioAcceso && dtoRest.passwordAcceso)) {
       throw new BadRequestException('usuarioAcceso y passwordAcceso deben enviarse juntos');
@@ -70,6 +70,7 @@ export class ProveedoresService {
             OR: [
               { razonSocial: { contains: search, mode: 'insensitive' } },
               { pais: { contains: search, mode: 'insensitive' } },
+              { rubro: { contains: search, mode: 'insensitive' } },
               { ruc: { contains: search } },
             ],
           }
@@ -108,7 +109,7 @@ export class ProveedoresService {
       ? await this.uploadService.uploadFile(files.copiaDni[0], 'proveedores/dni')
       : undefined;
 
-    const { comentarios, ...dtoRest } = dto as any;
+    const dtoRest = dto as any;
 
     const data: any = {
       ...dtoRest,

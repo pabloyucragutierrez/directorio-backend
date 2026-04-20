@@ -31,6 +31,7 @@ model Proveedor {
   referencia       String?
   rubro            String?
   subrubro         String?
+  comentarios      String?
   entrega          Boolean? @default(false)
   email            String?
   ruc              String?
