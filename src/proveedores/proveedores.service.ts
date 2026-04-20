@@ -79,6 +79,96 @@ export class ProveedoresService {
     });
   }
 
+  async findPaged(params: { search?: string; cursor?: number; limit?: number }) {
+    const search = params.search?.trim() || undefined;
+    const cursor = params.cursor;
+
+    const limit = params.limit ?? 20;
+    if (!Number.isFinite(limit) || limit <= 0) throw new BadRequestException('limit inválido');
+    const take = Math.min(Math.floor(limit), 100);
+
+    if (cursor != null && (!Number.isFinite(cursor) || cursor <= 0)) {
+      throw new BadRequestException('cursor inválido');
+    }
+
+    const where: Prisma.ProveedorWhereInput | undefined = search
+      ? {
+          OR: [
+            { razonSocial: { contains: search, mode: 'insensitive' } },
+            { pais: { contains: search, mode: 'insensitive' } },
+            { rubro: { contains: search, mode: 'insensitive' } },
+            { ruc: { contains: search } },
+          ],
+        }
+      : undefined;
+
+    const rows = await this.prisma.proveedor.findMany({
+      where,
+      orderBy: { id: 'desc' },
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: take + 1,
+    });
+
+    const hasMore = rows.length > take;
+    const items = hasMore ? rows.slice(0, take) : rows;
+    const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
+
+    return { items, hasMore, nextCursor };
+  }
+
+  async findConsultasPaged(params: { search?: string; cursor?: number; limit?: number }) {
+    const search = params.search?.trim() || undefined;
+    const cursor = params.cursor;
+
+    const limit = params.limit ?? 20;
+    if (!Number.isFinite(limit) || limit <= 0) throw new BadRequestException('limit inválido');
+    const take = Math.min(Math.floor(limit), 100);
+
+    if (cursor != null && (!Number.isFinite(cursor) || cursor <= 0)) {
+      throw new BadRequestException('cursor inválido');
+    }
+
+    const where: Prisma.ProveedorWhereInput | undefined = search
+      ? {
+          OR: [
+            { razonSocial: { contains: search, mode: 'insensitive' } },
+            { pais: { contains: search, mode: 'insensitive' } },
+            { rubro: { contains: search, mode: 'insensitive' } },
+            { ruc: { contains: search } },
+          ],
+        }
+      : undefined;
+
+    const rows = await this.prisma.proveedor.findMany({
+      where,
+      orderBy: { id: 'desc' },
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: take + 1,
+      select: {
+        id: true,
+        razonSocial: true,
+        pais: true,
+        rubro: true,
+        activo: true,
+        pedidos: {
+          select: {
+            calidad: true,
+            respuesta: true,
+            puntualidad: true,
+            confianza: true,
+            presentacion: true,
+          },
+        },
+      },
+    });
+
+    const hasMore = rows.length > take;
+    const items = hasMore ? rows.slice(0, take) : rows;
+    const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
+
+    return { items, hasMore, nextCursor };
+  }
+
   async findOne(id: number) {
     const proveedor = await this.prisma.proveedor.findUnique({
       where: { id },

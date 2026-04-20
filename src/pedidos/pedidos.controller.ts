@@ -25,6 +25,23 @@ export class PedidosController {
     return this.pedidosService.findAll(search);
   }
 
+  @Get('paged')
+  @ApiOperation({ summary: 'Listar pedidos (paginado para scroll)' })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'cursor', required: false, description: 'ID del último pedido recibido' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Cantidad de items por página (default 20, max 100)' })
+  findPaged(
+    @Query('search') search?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.pedidosService.findPaged({
+      search,
+      cursor: cursor ? Number(cursor) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   @Get('reporte')
   @ApiOperation({ summary: 'Reporte por proveedor' })
   @ApiQuery({ name: 'desde', required: false })

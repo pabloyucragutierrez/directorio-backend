@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
-import { EstadoPedido } from '@prisma/client';
+import { EstadoPedido, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PedidosService {
@@ -45,6 +45,42 @@ export class PedidosService {
       include: { proveedor: { select: { razonSocial: true } }, productos: true },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async findPaged(params: { search?: string; cursor?: number; limit?: number }) {
+    const search = params.search?.trim() || undefined;
+    const cursor = params.cursor;
+
+    const limit = params.limit ?? 20;
+    if (!Number.isFinite(limit) || limit <= 0) throw new BadRequestException('limit inválido');
+    const take = Math.min(Math.floor(limit), 100);
+
+    if (cursor != null && (!Number.isFinite(cursor) || cursor <= 0)) {
+      throw new BadRequestException('cursor inválido');
+    }
+
+    const where: Prisma.PedidoWhereInput | undefined = search
+      ? {
+          OR: [
+            { numero: { contains: search, mode: 'insensitive' } },
+            { proveedor: { razonSocial: { contains: search, mode: 'insensitive' } } },
+          ],
+        }
+      : undefined;
+
+    const rows = await this.prisma.pedido.findMany({
+      where,
+      include: { proveedor: { select: { razonSocial: true } }, productos: true },
+      orderBy: { id: 'desc' },
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: take + 1,
+    });
+
+    const hasMore = rows.length > take;
+    const items = hasMore ? rows.slice(0, take) : rows;
+    const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
+
+    return { items, hasMore, nextCursor };
   }
 
   async findOne(id: number) {

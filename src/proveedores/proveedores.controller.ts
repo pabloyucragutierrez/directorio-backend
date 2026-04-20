@@ -40,8 +40,42 @@ export class ProveedoresController {
     return this.proveedoresService.findAll(search);
   }
 
+  @Get('paged')
+  @ApiOperation({ summary: 'Listar proveedores (paginado para scroll)' })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'cursor', required: false, description: 'ID del último proveedor recibido' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Cantidad de items por página (default 20, max 100)' })
+  findPaged(
+    @Query('search') search?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.proveedoresService.findPaged({
+      search,
+      cursor: cursor ? Number(cursor) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('consultas-paged')
+  @ApiOperation({ summary: 'Listar proveedores para consultas (paginado para scroll)' })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'cursor', required: false, description: 'ID del último proveedor recibido' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Cantidad de items por página (default 20, max 100)' })
+  findConsultasPaged(
+    @Query('search') search?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.proveedoresService.findConsultasPaged({
+      search,
+      cursor: cursor ? Number(cursor) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   @Get('stats')
-  @ApiOperation({ summary: 'Estadísticas del dashboard' })
+  @ApiOperation({ summary: 'EstadÃ­sticas del dashboard' })
   getStats() {
     return this.proveedoresService.getStats();
   }
@@ -80,7 +114,7 @@ export class ProveedoresController {
     return this.proveedoresService.removePedidos(id);
   }
 
-  // ── Productos del proveedor ────────────────────────────────────────────────
+  // â”€â”€ Productos del proveedor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Get(':id/productos')
   @ApiOperation({ summary: 'Listar productos del proveedor' })
