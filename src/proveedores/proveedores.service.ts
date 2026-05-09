@@ -7,6 +7,14 @@ import { UploadService } from '../upload/upload.service';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
+function removeDiacritics(value: string) {
+  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+}
+
+function normalizeSearchTerm(value: string) {
+  return removeDiacritics(value).toLowerCase();
+}
+
 @Injectable()
 export class ProveedoresService {
   constructor(
@@ -129,40 +137,75 @@ export class ProveedoresService {
       throw new BadRequestException('cursor inválido');
     }
 
-    const where: Prisma.ProveedorWhereInput | undefined =
-      search || rubro
-        ? {
-            AND: [
-              ...(search
-                ? [
-                    {
-                      OR: [
-                        { razonSocial: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                        { pais: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                        { rubro: { contains: search, mode: Prisma.QueryMode.insensitive } },
-                        { ruc: { contains: search } },
-                      ],
-                    },
-                  ]
-                : []),
-              ...(rubro
-                ? [
-                    {
-                      rubro: { equals: rubro, mode: Prisma.QueryMode.insensitive },
-                    },
-                  ]
-                : []),
-            ],
-          }
-        : undefined;
+    // Prisma (contains + insensitive) no es insensible a tildes en Postgres por defecto.
+    // Para que "Peru" encuentre también "Perú", normalizamos (lower + sin diacríticos) en SQL usando translate().
+    const normalizedSearch = search ? normalizeSearchTerm(search) : undefined;
 
-    const total = await this.prisma.proveedor.count({ where });
+    const ACCENTED = 'áàäâãéèëêíìïîóòöôõúùüûñç';
+    const PLAIN = 'aaaaaeeeeiiiiooooouuuunc';
+    const normCol = (col: string) => `translate(lower(${col}), '${ACCENTED}', '${PLAIN}')`;
 
-    const rows = await this.prisma.proveedor.findMany({
-      where,
+    const conditions: Prisma.Sql[] = [];
+
+    if (cursor != null) {
+      conditions.push(Prisma.sql`p.id < ${cursor}`);
+    }
+
+    if (rubro) {
+      conditions.push(Prisma.sql`lower(p."rubro") = lower(${rubro})`);
+    }
+
+    if (normalizedSearch) {
+      conditions.push(
+        Prisma.sql`(
+          ${Prisma.raw(normCol('p."razonSocial"'))} LIKE '%' || ${normalizedSearch} || '%'
+          OR ${Prisma.raw(normCol('p."pais"'))} LIKE '%' || ${normalizedSearch} || '%'
+          OR ${Prisma.raw(normCol('p."rubro"'))} LIKE '%' || ${normalizedSearch} || '%'
+          OR p."ruc" LIKE '%' || ${search} || '%'
+        )`,
+      );
+    }
+
+    const whereSql = conditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}` : null;
+
+    const totalRow = whereSql
+      ? await this.prisma.$queryRaw<{ total: number }[]>`
+          SELECT COUNT(*)::int AS total
+          FROM "Proveedor" p
+          ${whereSql}
+        `
+      : await this.prisma.$queryRaw<{ total: number }[]>`
+          SELECT COUNT(*)::int AS total
+          FROM "Proveedor" p
+        `;
+
+    const total = totalRow?.[0]?.total ?? 0;
+
+    const idRows = whereSql
+      ? await this.prisma.$queryRaw<{ id: number }[]>`
+          SELECT p.id
+          FROM "Proveedor" p
+          ${whereSql}
+          ORDER BY p.id DESC
+          LIMIT ${take + 1}
+        `
+      : await this.prisma.$queryRaw<{ id: number }[]>`
+          SELECT p.id
+          FROM "Proveedor" p
+          ORDER BY p.id DESC
+          LIMIT ${take + 1}
+        `;
+
+    const hasMore = idRows.length > take;
+    const pageIds = (hasMore ? idRows.slice(0, take) : idRows).map((r) => r.id);
+
+    if (pageIds.length === 0) {
+      return { items: [], hasMore: false, nextCursor: null, total };
+    }
+
+    const items = await this.prisma.proveedor.findMany({
+      where: { id: { in: pageIds } },
       orderBy: { id: 'desc' },
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      take: take + 1,
       select: {
         id: true,
         razonSocial: true,
@@ -181,8 +224,6 @@ export class ProveedoresService {
       },
     });
 
-    const hasMore = rows.length > take;
-    const items = hasMore ? rows.slice(0, take) : rows;
     const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
 
     return { items, hasMore, nextCursor, total };
