@@ -116,8 +116,9 @@ export class ProveedoresService {
     return { items, hasMore, nextCursor };
   }
 
-  async findConsultasPaged(params: { search?: string; cursor?: number; limit?: number }) {
+  async findConsultasPaged(params: { search?: string; rubro?: string; cursor?: number; limit?: number }) {
     const search = params.search?.trim() || undefined;
+    const rubro = params.rubro?.trim() || undefined;
     const cursor = params.cursor;
 
     const limit = params.limit ?? 20;
@@ -128,16 +129,34 @@ export class ProveedoresService {
       throw new BadRequestException('cursor inválido');
     }
 
-    const where: Prisma.ProveedorWhereInput | undefined = search
-      ? {
-          OR: [
-            { razonSocial: { contains: search, mode: 'insensitive' } },
-            { pais: { contains: search, mode: 'insensitive' } },
-            { rubro: { contains: search, mode: 'insensitive' } },
-            { ruc: { contains: search } },
-          ],
-        }
-      : undefined;
+    const where: Prisma.ProveedorWhereInput | undefined =
+      search || rubro
+        ? {
+            AND: [
+              ...(search
+                ? [
+                    {
+                      OR: [
+                        { razonSocial: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                        { pais: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                        { rubro: { contains: search, mode: Prisma.QueryMode.insensitive } },
+                        { ruc: { contains: search } },
+                      ],
+                    },
+                  ]
+                : []),
+              ...(rubro
+                ? [
+                    {
+                      rubro: { equals: rubro, mode: Prisma.QueryMode.insensitive },
+                    },
+                  ]
+                : []),
+            ],
+          }
+        : undefined;
+
+    const total = await this.prisma.proveedor.count({ where });
 
     const rows = await this.prisma.proveedor.findMany({
       where,
@@ -166,7 +185,20 @@ export class ProveedoresService {
     const items = hasMore ? rows.slice(0, take) : rows;
     const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
 
-    return { items, hasMore, nextCursor };
+    return { items, hasMore, nextCursor, total };
+  }
+
+  async getRubros() {
+    const rows = await this.prisma.proveedor.findMany({
+      where: { rubro: { not: null } },
+      select: { rubro: true },
+      distinct: ['rubro'],
+    });
+
+    return rows
+      .map((r) => (r.rubro ?? '').trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
   }
 
   async findOne(id: number) {

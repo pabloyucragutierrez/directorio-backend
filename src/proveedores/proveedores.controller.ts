@@ -36,6 +36,7 @@ export class ProveedoresController {
   @Get()
   @ApiOperation({ summary: 'Listar proveedores' })
   @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'rubro', required: false, description: 'Filtro exacto por rubro' })
   findAll(@Query('search') search?: string) {
     return this.proveedoresService.findAll(search);
   }
@@ -64,14 +65,22 @@ export class ProveedoresController {
   @ApiQuery({ name: 'limit', required: false, description: 'Cantidad de items por página (default 20, max 100)' })
   findConsultasPaged(
     @Query('search') search?: string,
+    @Query('rubro') rubro?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
     return this.proveedoresService.findConsultasPaged({
       search,
+      rubro,
       cursor: cursor ? Number(cursor) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
+  }
+
+  @Get('rubros')
+  @ApiOperation({ summary: 'Listar rubros disponibles (distinct)' })
+  getRubros() {
+    return this.proveedoresService.getRubros();
   }
 
   @Get('stats')
