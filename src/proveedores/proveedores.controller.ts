@@ -1,9 +1,29 @@
 import {
-  Controller, Get, Post, Body, Patch, Param, Delete,
-  UseGuards, ParseIntPipe, Query, UseInterceptors, UploadedFiles, UploadedFile,
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  ParseIntPipe,
+  Query,
+  UseInterceptors,
+  UploadedFiles,
+  UploadedFile,
 } from '@nestjs/common';
-import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiQuery } from '@nestjs/swagger';
+import {
+  FileFieldsInterceptor,
+  FileInterceptor,
+} from '@nestjs/platform-express';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { ProveedoresService } from './proveedores.service';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
@@ -21,14 +41,24 @@ export class ProveedoresController {
   @Post()
   @ApiOperation({ summary: 'Crear proveedor' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'copiaRuc', maxCount: 1 },
-    { name: 'copiaLicencia', maxCount: 1 },
-    { name: 'copiaDni', maxCount: 1 },
-  ], { storage: memoryStorage() }))
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'copiaRuc', maxCount: 1 },
+        { name: 'copiaLicencia', maxCount: 1 },
+        { name: 'copiaDni', maxCount: 1 },
+      ],
+      { storage: memoryStorage() },
+    ),
+  )
   create(
     @Body() dto: CreateProveedorDto,
-    @UploadedFiles() files: { copiaRuc?: Express.Multer.File[]; copiaLicencia?: Express.Multer.File[]; copiaDni?: Express.Multer.File[] },
+    @UploadedFiles()
+    files: {
+      copiaRuc?: Express.Multer.File[];
+      copiaLicencia?: Express.Multer.File[];
+      copiaDni?: Express.Multer.File[];
+    },
   ) {
     return this.proveedoresService.create(dto, files);
   }
@@ -36,7 +66,11 @@ export class ProveedoresController {
   @Get()
   @ApiOperation({ summary: 'Listar proveedores' })
   @ApiQuery({ name: 'search', required: false })
-  @ApiQuery({ name: 'rubro', required: false, description: 'Filtro exacto por rubro' })
+  @ApiQuery({
+    name: 'rubro',
+    required: false,
+    description: 'Filtro exacto por rubro',
+  })
   findAll(@Query('search') search?: string) {
     return this.proveedoresService.findAll(search);
   }
@@ -44,8 +78,16 @@ export class ProveedoresController {
   @Get('paged')
   @ApiOperation({ summary: 'Listar proveedores (paginado para scroll)' })
   @ApiQuery({ name: 'search', required: false })
-  @ApiQuery({ name: 'cursor', required: false, description: 'ID del último proveedor recibido' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Cantidad de items por página (default 20, max 100)' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'ID del último proveedor recibido',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Cantidad de items por página (default 20, max 100)',
+  })
   findPaged(
     @Query('search') search?: string,
     @Query('cursor') cursor?: string,
@@ -59,19 +101,35 @@ export class ProveedoresController {
   }
 
   @Get('consultas-paged')
-  @ApiOperation({ summary: 'Listar proveedores para consultas (paginado para scroll)' })
+  @ApiOperation({
+    summary: 'Listar proveedores para consultas (paginado para scroll)',
+  })
   @ApiQuery({ name: 'search', required: false })
-  @ApiQuery({ name: 'cursor', required: false, description: 'ID del último proveedor recibido' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Cantidad de items por página (default 20, max 100)' })
+  @ApiQuery({ name: 'ciudad', required: false, description: 'Filtro parcial por ciudad' })
+  @ApiQuery({ name: 'subrubro', required: false, description: 'Filtro parcial por subrubro' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'ID del último proveedor recibido',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Cantidad de items por página (default 20, max 100)',
+  })
   findConsultasPaged(
     @Query('search') search?: string,
     @Query('rubro') rubro?: string,
+    @Query('ciudad') ciudad?: string,
+    @Query('subrubro') subrubro?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
     return this.proveedoresService.findConsultasPaged({
       search,
       rubro,
+      ciudad,
+      subrubro,
       cursor: cursor ? Number(cursor) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
@@ -98,15 +156,25 @@ export class ProveedoresController {
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar proveedor' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'copiaRuc', maxCount: 1 },
-    { name: 'copiaLicencia', maxCount: 1 },
-    { name: 'copiaDni', maxCount: 1 },
-  ], { storage: memoryStorage() }))
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'copiaRuc', maxCount: 1 },
+        { name: 'copiaLicencia', maxCount: 1 },
+        { name: 'copiaDni', maxCount: 1 },
+      ],
+      { storage: memoryStorage() },
+    ),
+  )
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateProveedorDto,
-    @UploadedFiles() files: { copiaRuc?: Express.Multer.File[]; copiaLicencia?: Express.Multer.File[]; copiaDni?: Express.Multer.File[] },
+    @UploadedFiles()
+    files: {
+      copiaRuc?: Express.Multer.File[];
+      copiaLicencia?: Express.Multer.File[];
+      copiaDni?: Express.Multer.File[];
+    },
   ) {
     return this.proveedoresService.update(id, dto, files);
   }

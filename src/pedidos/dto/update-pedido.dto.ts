@@ -1,8 +1,18 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsBoolean, IsNumber, IsOptional, IsInt, Min, Max } from 'class-validator';
+import {
+  IsString,
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
 
 export class UpdatePedidoDto {
-  @ApiPropertyOptional({ enum: ['PENDIENTE', 'ACEPTADO', 'RECHAZADO', 'AGOTADO'] })
+  @ApiPropertyOptional({
+    enum: ['PENDIENTE', 'ACEPTADO', 'RECHAZADO', 'AGOTADO'],
+  })
   @IsOptional()
   @IsString()
   estado?: string;

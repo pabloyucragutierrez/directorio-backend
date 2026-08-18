@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
@@ -32,33 +37,53 @@ export class ProveedoresService {
   ) {
     const dtoRest = dto as any;
 
-    if ((dtoRest.usuarioAcceso && !dtoRest.passwordAcceso) || (!dtoRest.usuarioAcceso && dtoRest.passwordAcceso)) {
-      throw new BadRequestException('usuarioAcceso y passwordAcceso deben enviarse juntos');
+    if (
+      (dtoRest.usuarioAcceso && !dtoRest.passwordAcceso) ||
+      (!dtoRest.usuarioAcceso && dtoRest.passwordAcceso)
+    ) {
+      throw new BadRequestException(
+        'usuarioAcceso y passwordAcceso deben enviarse juntos',
+      );
     }
 
     if (dto.ruc) {
-      const existsRuc = await this.prisma.proveedor.findFirst({ where: { ruc: dto.ruc } });
-      if (existsRuc) throw new ConflictException('Ya existe un proveedor con ese RUC');
+      const existsRuc = await this.prisma.proveedor.findFirst({
+        where: { ruc: dto.ruc },
+      });
+      if (existsRuc)
+        throw new ConflictException('Ya existe un proveedor con ese RUC');
     }
 
     if (dtoRest.usuarioAcceso) {
       const existsUsuario = await this.prisma.proveedor.findUnique({
         where: { usuarioAcceso: dtoRest.usuarioAcceso },
       });
-      if (existsUsuario) throw new ConflictException('Ese usuario de acceso ya está en uso');
+      if (existsUsuario)
+        throw new ConflictException('Ese usuario de acceso ya está en uso');
     }
 
     const copiaRucUrl = files?.copiaRuc?.[0]
-      ? await this.uploadService.uploadFile(files.copiaRuc[0], 'proveedores/ruc')
+      ? await this.uploadService.uploadFile(
+          files.copiaRuc[0],
+          'proveedores/ruc',
+        )
       : undefined;
     const copiaLicenciaUrl = files?.copiaLicencia?.[0]
-      ? await this.uploadService.uploadFile(files.copiaLicencia[0], 'proveedores/licencias')
+      ? await this.uploadService.uploadFile(
+          files.copiaLicencia[0],
+          'proveedores/licencias',
+        )
       : undefined;
     const copiaDniUrl = files?.copiaDni?.[0]
-      ? await this.uploadService.uploadFile(files.copiaDni[0], 'proveedores/dni')
+      ? await this.uploadService.uploadFile(
+          files.copiaDni[0],
+          'proveedores/dni',
+        )
       : undefined;
 
-    const passwordHash = dtoRest.passwordAcceso ? await bcrypt.hash(dtoRest.passwordAcceso, 10) : undefined;
+    const passwordHash = dtoRest.passwordAcceso
+      ? await bcrypt.hash(dtoRest.passwordAcceso, 10)
+      : undefined;
 
     return this.prisma.proveedor.create({
       data: {
@@ -87,12 +112,17 @@ export class ProveedoresService {
     });
   }
 
-  async findPaged(params: { search?: string; cursor?: number; limit?: number }) {
+  async findPaged(params: {
+    search?: string;
+    cursor?: number;
+    limit?: number;
+  }) {
     const search = params.search?.trim() || undefined;
     const cursor = params.cursor;
 
     const limit = params.limit ?? 20;
-    if (!Number.isFinite(limit) || limit <= 0) throw new BadRequestException('limit inválido');
+    if (!Number.isFinite(limit) || limit <= 0)
+      throw new BadRequestException('limit inválido');
     const take = Math.min(Math.floor(limit), 100);
 
     if (cursor != null && (!Number.isFinite(cursor) || cursor <= 0)) {
@@ -124,13 +154,23 @@ export class ProveedoresService {
     return { items, hasMore, nextCursor };
   }
 
-  async findConsultasPaged(params: { search?: string; rubro?: string; cursor?: number; limit?: number }) {
+  async findConsultasPaged(params: {
+    search?: string;
+    rubro?: string;
+    ciudad?: string;
+    subrubro?: string;
+    cursor?: number;
+    limit?: number;
+  }) {
     const search = params.search?.trim() || undefined;
     const rubro = params.rubro?.trim() || undefined;
+    const ciudad = params.ciudad?.trim() || undefined;
+    const subrubro = params.subrubro?.trim() || undefined;
     const cursor = params.cursor;
 
     const limit = params.limit ?? 20;
-    if (!Number.isFinite(limit) || limit <= 0) throw new BadRequestException('limit inválido');
+    if (!Number.isFinite(limit) || limit <= 0)
+      throw new BadRequestException('limit inválido');
     const take = Math.min(Math.floor(limit), 100);
 
     if (cursor != null && (!Number.isFinite(cursor) || cursor <= 0)) {
@@ -143,7 +183,8 @@ export class ProveedoresService {
 
     const ACCENTED = 'áàäâãéèëêíìïîóòöôõúùüûñç';
     const PLAIN = 'aaaaaeeeeiiiiooooouuuunc';
-    const normCol = (col: string) => `translate(lower(${col}), '${ACCENTED}', '${PLAIN}')`;
+    const normCol = (col: string) =>
+      `translate(lower(${col}), '${ACCENTED}', '${PLAIN}')`;
 
     const conditions: Prisma.Sql[] = [];
 
@@ -155,18 +196,35 @@ export class ProveedoresService {
       conditions.push(Prisma.sql`lower(p."rubro") = lower(${rubro})`);
     }
 
+    if (ciudad) {
+      conditions.push(
+        Prisma.sql`${Prisma.raw(normCol('p."ciudad"'))} LIKE '%' || ${normalizeSearchTerm(ciudad)} || '%'`,
+      );
+    }
+
+    if (subrubro) {
+      conditions.push(
+        Prisma.sql`${Prisma.raw(normCol('p."subrubro"'))} LIKE '%' || ${normalizeSearchTerm(subrubro)} || '%'`,
+      );
+    }
+
     if (normalizedSearch) {
       conditions.push(
         Prisma.sql`(
           ${Prisma.raw(normCol('p."razonSocial"'))} LIKE '%' || ${normalizedSearch} || '%'
           OR ${Prisma.raw(normCol('p."pais"'))} LIKE '%' || ${normalizedSearch} || '%'
           OR ${Prisma.raw(normCol('p."rubro"'))} LIKE '%' || ${normalizedSearch} || '%'
+          OR ${Prisma.raw(normCol('p."ciudad"'))} LIKE '%' || ${normalizedSearch} || '%'
+          OR ${Prisma.raw(normCol('p."subrubro"'))} LIKE '%' || ${normalizedSearch} || '%'
           OR p."ruc" LIKE '%' || ${search} || '%'
         )`,
       );
     }
 
-    const whereSql = conditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}` : null;
+    const whereSql =
+      conditions.length > 0
+        ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+        : null;
 
     const totalRow = whereSql
       ? await this.prisma.$queryRaw<{ total: number }[]>`
@@ -263,13 +321,22 @@ export class ProveedoresService {
     await this.findOne(id);
 
     const copiaRucUrl = files?.copiaRuc?.[0]
-      ? await this.uploadService.uploadFile(files.copiaRuc[0], 'proveedores/ruc')
+      ? await this.uploadService.uploadFile(
+          files.copiaRuc[0],
+          'proveedores/ruc',
+        )
       : undefined;
     const copiaLicenciaUrl = files?.copiaLicencia?.[0]
-      ? await this.uploadService.uploadFile(files.copiaLicencia[0], 'proveedores/licencias')
+      ? await this.uploadService.uploadFile(
+          files.copiaLicencia[0],
+          'proveedores/licencias',
+        )
       : undefined;
     const copiaDniUrl = files?.copiaDni?.[0]
-      ? await this.uploadService.uploadFile(files.copiaDni[0], 'proveedores/dni')
+      ? await this.uploadService.uploadFile(
+          files.copiaDni[0],
+          'proveedores/dni',
+        )
       : undefined;
 
     const dtoRest = dto as any;
@@ -292,7 +359,9 @@ export class ProveedoresService {
     await this.findOne(id);
 
     // Verificar si tiene pedidos
-    const pedidosCount = await this.prisma.pedido.count({ where: { proveedorId: id } });
+    const pedidosCount = await this.prisma.pedido.count({
+      where: { proveedorId: id },
+    });
     if (pedidosCount > 0) {
       throw new ConflictException(
         `Este proveedor tiene ${pedidosCount} pedido(s) asociado(s). Debes eliminar los pedidos antes de eliminar el proveedor.`,
@@ -311,7 +380,10 @@ export class ProveedoresService {
     } catch (err: unknown) {
       // Respaldo: si por alguna razón falla por una FK (por ejemplo, pedidos creados en paralelo),
       // devolvemos un mensaje claro para el frontend.
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2003'
+      ) {
         throw new ConflictException(
           'No se puede eliminar el proveedor porque tiene registros asociados (por ejemplo, pedidos).',
         );
@@ -323,16 +395,25 @@ export class ProveedoresService {
   async removePedidos(id: number) {
     await this.findOne(id);
     // Eliminar productos de cada pedido primero (cascade debería manejarlo, pero por seguridad)
-    const pedidos = await this.prisma.pedido.findMany({ where: { proveedorId: id }, select: { id: true } });
+    const pedidos = await this.prisma.pedido.findMany({
+      where: { proveedorId: id },
+      select: { id: true },
+    });
     for (const pedido of pedidos) {
-      await this.prisma.productoPedido.deleteMany({ where: { pedidoId: pedido.id } });
+      await this.prisma.productoPedido.deleteMany({
+        where: { pedidoId: pedido.id },
+      });
     }
-    const deleted = await this.prisma.pedido.deleteMany({ where: { proveedorId: id } });
+    const deleted = await this.prisma.pedido.deleteMany({
+      where: { proveedorId: id },
+    });
     return { message: `${deleted.count} pedido(s) eliminado(s) correctamente` };
   }
 
   async getStats() {
-    const totalProveedores = await this.prisma.proveedor.count({ where: { activo: true } });
+    const totalProveedores = await this.prisma.proveedor.count({
+      where: { activo: true },
+    });
 
     const pedidosEsteMes = await this.prisma.pedido.count({
       where: {
@@ -358,20 +439,33 @@ export class ProveedoresService {
       const suma = calificaciones.reduce(
         (acc, p) =>
           acc +
-          ((p.calidad ?? 0) + (p.respuesta ?? 0) + (p.puntualidad ?? 0) +
-            (p.confianza ?? 0) + (p.presentacion ?? 0)) / 5,
+          ((p.calidad ?? 0) +
+            (p.respuesta ?? 0) +
+            (p.puntualidad ?? 0) +
+            (p.confianza ?? 0) +
+            (p.presentacion ?? 0)) /
+            5,
         0,
       );
-      calificacionPromedio = Math.round((suma / calificaciones.length) * 10) / 10;
+      calificacionPromedio =
+        Math.round((suma / calificaciones.length) * 10) / 10;
     }
 
     const pedidosTotales = await this.prisma.pedido.count();
-    const pedidosCompletados = await this.prisma.pedido.count({ where: { estado: 'ACEPTADO' } });
-    const tasaEntrega = pedidosTotales > 0
-      ? Math.round((pedidosCompletados / pedidosTotales) * 100)
-      : 0;
+    const pedidosCompletados = await this.prisma.pedido.count({
+      where: { estado: 'ACEPTADO' },
+    });
+    const tasaEntrega =
+      pedidosTotales > 0
+        ? Math.round((pedidosCompletados / pedidosTotales) * 100)
+        : 0;
 
-    return { totalProveedores, pedidosEsteMes, calificacionPromedio, tasaEntrega };
+    return {
+      totalProveedores,
+      pedidosEsteMes,
+      calificacionPromedio,
+      tasaEntrega,
+    };
   }
 
   async getProductos(proveedorId: number) {

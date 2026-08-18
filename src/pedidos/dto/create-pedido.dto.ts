@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsInt, IsArray, ValidateNested, IsNumber, IsPositive, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  IsArray,
+  ValidateNested,
+  IsNumber,
+  IsPositive,
+  IsOptional,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ProductoPedidoDto {
@@ -12,7 +20,7 @@ export class ProductoPedidoDto {
   @IsPositive()
   cantidad!: number;
 
-  @ApiProperty({ example: 35.00 })
+  @ApiProperty({ example: 35.0 })
   @IsNumber()
   @IsPositive()
   precio!: number;

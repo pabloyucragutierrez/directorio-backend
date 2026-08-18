@@ -1,5 +1,22 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, ParseIntPipe, Query, Request, Delete } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  UseGuards,
+  ParseIntPipe,
+  Query,
+  Request,
+  Delete,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { PedidosService } from './pedidos.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
@@ -28,8 +45,16 @@ export class PedidosController {
   @Get('paged')
   @ApiOperation({ summary: 'Listar pedidos (paginado para scroll)' })
   @ApiQuery({ name: 'search', required: false })
-  @ApiQuery({ name: 'cursor', required: false, description: 'ID del último pedido recibido' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Cantidad de items por página (default 20, max 100)' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'ID del último pedido recibido',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Cantidad de items por página (default 20, max 100)',
+  })
   findPaged(
     @Query('search') search?: string,
     @Query('cursor') cursor?: string,
@@ -54,8 +79,16 @@ export class PedidosController {
   @ApiOperation({ summary: 'Reporte por proveedor (paginado para scroll)' })
   @ApiQuery({ name: 'desde', required: false })
   @ApiQuery({ name: 'hasta', required: false })
-  @ApiQuery({ name: 'cursor', required: false, description: 'ID del ultimo proveedor recibido' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Cantidad de items por pagina (default 20, max 100)' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'ID del ultimo proveedor recibido',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Cantidad de items por pagina (default 20, max 100)',
+  })
   getReportePaged(
     @Query('desde') desde?: string,
     @Query('hasta') hasta?: string,

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
@@ -14,12 +19,15 @@ export class PedidosService {
   }
 
   async create(dto: CreatePedidoDto) {
-    let numero = dto.numero?.trim() || this.generarNumeroPedido();
+    const numero = dto.numero?.trim() || this.generarNumeroPedido();
 
     const exists = await this.prisma.pedido.findUnique({ where: { numero } });
-    if (exists) throw new ConflictException('Ya existe un pedido con ese número');
+    if (exists)
+      throw new ConflictException('Ya existe un pedido con ese número');
 
-    const proveedor = await this.prisma.proveedor.findUnique({ where: { id: dto.proveedorId } });
+    const proveedor = await this.prisma.proveedor.findUnique({
+      where: { id: dto.proveedorId },
+    });
     if (!proveedor) throw new NotFoundException('Proveedor no encontrado');
 
     return this.prisma.pedido.create({
@@ -36,23 +44,37 @@ export class PedidosService {
 
   async findAll(search?: string) {
     return this.prisma.pedido.findMany({
-      where: search ? {
-        OR: [
-          { numero: { contains: search, mode: 'insensitive' } },
-          { proveedor: { razonSocial: { contains: search, mode: 'insensitive' } } },
-        ],
-      } : undefined,
-      include: { proveedor: { select: { razonSocial: true } }, productos: true },
+      where: search
+        ? {
+            OR: [
+              { numero: { contains: search, mode: 'insensitive' } },
+              {
+                proveedor: {
+                  razonSocial: { contains: search, mode: 'insensitive' },
+                },
+              },
+            ],
+          }
+        : undefined,
+      include: {
+        proveedor: { select: { razonSocial: true } },
+        productos: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findPaged(params: { search?: string; cursor?: number; limit?: number }) {
+  async findPaged(params: {
+    search?: string;
+    cursor?: number;
+    limit?: number;
+  }) {
     const search = params.search?.trim() || undefined;
     const cursor = params.cursor;
 
     const limit = params.limit ?? 20;
-    if (!Number.isFinite(limit) || limit <= 0) throw new BadRequestException('limit inválido');
+    if (!Number.isFinite(limit) || limit <= 0)
+      throw new BadRequestException('limit inválido');
     const take = Math.min(Math.floor(limit), 100);
 
     if (cursor != null && (!Number.isFinite(cursor) || cursor <= 0)) {
@@ -63,14 +85,21 @@ export class PedidosService {
       ? {
           OR: [
             { numero: { contains: search, mode: 'insensitive' } },
-            { proveedor: { razonSocial: { contains: search, mode: 'insensitive' } } },
+            {
+              proveedor: {
+                razonSocial: { contains: search, mode: 'insensitive' },
+              },
+            },
           ],
         }
       : undefined;
 
     const rows = await this.prisma.pedido.findMany({
       where,
-      include: { proveedor: { select: { razonSocial: true } }, productos: true },
+      include: {
+        proveedor: { select: { razonSocial: true } },
+        productos: true,
+      },
       orderBy: { id: 'desc' },
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       take: take + 1,
@@ -100,10 +129,17 @@ export class PedidosService {
     });
   }
 
-  async responderPedido(id: number, proveedorId: number, accion: 'ACEPTADO' | 'RECHAZADO') {
-    const pedido = await this.prisma.pedido.findFirst({ where: { id, proveedorId } });
+  async responderPedido(
+    id: number,
+    proveedorId: number,
+    accion: 'ACEPTADO' | 'RECHAZADO',
+  ) {
+    const pedido = await this.prisma.pedido.findFirst({
+      where: { id, proveedorId },
+    });
     if (!pedido) throw new NotFoundException('Pedido no encontrado');
-    if (pedido.estado !== 'PENDIENTE') throw new ConflictException('El pedido ya fue respondido');
+    if (pedido.estado !== 'PENDIENTE')
+      throw new ConflictException('El pedido ya fue respondido');
 
     const data: any = { estado: accion };
 
@@ -147,36 +183,68 @@ export class PedidosService {
     const proveedores = await this.prisma.proveedor.findMany({
       include: {
         pedidos: {
-          where: (desde || hasta) ? {
-            fecha: {
-              ...(desde && { gte: new Date(desde) }),
-              ...(hasta && { lte: new Date(hasta) }),
-            },
-          } : undefined,
+          where:
+            desde || hasta
+              ? {
+                  fecha: {
+                    ...(desde && { gte: new Date(desde) }),
+                    ...(hasta && { lte: new Date(hasta) }),
+                  },
+                }
+              : undefined,
         },
       },
     });
 
     return proveedores.map((p) => {
       const total = p.pedidos.length;
-      const completados = p.pedidos.filter((ped) => ped.estado === 'ACEPTADO').length;
-      const cals = p.pedidos.filter((ped) => ped.calidad !== null && ped.calidad > 0);
-      const calificacion = cals.length > 0
-        ? Math.round((cals.reduce((acc, ped) =>
-            acc + ((ped.calidad ?? 0) + (ped.respuesta ?? 0) + (ped.puntualidad ?? 0) + (ped.confianza ?? 0) + (ped.presentacion ?? 0)) / 5, 0
-          ) / cals.length) * 10) / 10
-        : 0;
+      const completados = p.pedidos.filter(
+        (ped) => ped.estado === 'ACEPTADO',
+      ).length;
+      const cals = p.pedidos.filter(
+        (ped) => ped.calidad !== null && ped.calidad > 0,
+      );
+      const calificacion =
+        cals.length > 0
+          ? Math.round(
+              (cals.reduce(
+                (acc, ped) =>
+                  acc +
+                  ((ped.calidad ?? 0) +
+                    (ped.respuesta ?? 0) +
+                    (ped.puntualidad ?? 0) +
+                    (ped.confianza ?? 0) +
+                    (ped.presentacion ?? 0)) /
+                    5,
+                0,
+              ) /
+                cals.length) *
+                10,
+            ) / 10
+          : 0;
 
-      return { proveedor: p.razonSocial, pais: p.pais, total, completados, calificacion };
+      return {
+        proveedor: p.razonSocial,
+        pais: p.pais,
+        total,
+        completados,
+        calificacion,
+      };
     });
   }
 
-  async getReportePaged(params: { desde?: string; hasta?: string; cursor?: number; limit?: number }) {
+  async getReportePaged(params: {
+    desde?: string;
+    hasta?: string;
+    cursor?: number;
+    limit?: number;
+  }) {
     const { desde, hasta } = params;
     const cursor = params.cursor;
 
     const limit = params.limit ?? 20;
-    if (!Number.isFinite(limit) || limit <= 0) throw new BadRequestException('limit invalido');
+    if (!Number.isFinite(limit) || limit <= 0)
+      throw new BadRequestException('limit invalido');
     const take = Math.min(Math.floor(limit), 100);
 
     if (cursor != null && (!Number.isFinite(cursor) || cursor <= 0)) {
@@ -189,14 +257,15 @@ export class PedidosService {
         razonSocial: true,
         pais: true,
         pedidos: {
-          where: (desde || hasta)
-            ? {
-                fecha: {
-                  ...(desde && { gte: new Date(desde) }),
-                  ...(hasta && { lte: new Date(hasta) }),
-                },
-              }
-            : undefined,
+          where:
+            desde || hasta
+              ? {
+                  fecha: {
+                    ...(desde && { gte: new Date(desde) }),
+                    ...(hasta && { lte: new Date(hasta) }),
+                  },
+                }
+              : undefined,
           select: {
             estado: true,
             calidad: true,
@@ -217,24 +286,30 @@ export class PedidosService {
 
     const items = rows.map((proveedor) => {
       const total = proveedor.pedidos.length;
-      const completados = proveedor.pedidos.filter((pedido) => pedido.estado === 'ACEPTADO').length;
-      const cals = proveedor.pedidos.filter((pedido) => pedido.calidad !== null && pedido.calidad > 0);
-      const calificacion = cals.length > 0
-        ? Math.round(
-            (cals.reduce(
-              (acc, pedido) =>
-                acc +
-                ((pedido.calidad ?? 0) +
-                  (pedido.respuesta ?? 0) +
-                  (pedido.puntualidad ?? 0) +
-                  (pedido.confianza ?? 0) +
-                  (pedido.presentacion ?? 0)) / 5,
-              0,
-            ) /
-              cals.length) *
-              10,
-          ) / 10
-        : 0;
+      const completados = proveedor.pedidos.filter(
+        (pedido) => pedido.estado === 'ACEPTADO',
+      ).length;
+      const cals = proveedor.pedidos.filter(
+        (pedido) => pedido.calidad !== null && pedido.calidad > 0,
+      );
+      const calificacion =
+        cals.length > 0
+          ? Math.round(
+              (cals.reduce(
+                (acc, pedido) =>
+                  acc +
+                  ((pedido.calidad ?? 0) +
+                    (pedido.respuesta ?? 0) +
+                    (pedido.puntualidad ?? 0) +
+                    (pedido.confianza ?? 0) +
+                    (pedido.presentacion ?? 0)) /
+                    5,
+                0,
+              ) /
+                cals.length) *
+                10,
+            ) / 10
+          : 0;
 
       return {
         id: proveedor.id,

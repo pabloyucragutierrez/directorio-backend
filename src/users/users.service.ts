@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -9,12 +14,17 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateUserDto) {
-    const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const exists = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (exists) throw new ConflictException('El email ya está registrado');
 
     if (dto.rol === 'proveedor') {
-      if (!dto.proveedorId) throw new BadRequestException('Debes seleccionar un proveedor');
-      const proveedor = await this.prisma.proveedor.findUnique({ where: { id: dto.proveedorId } });
+      if (!dto.proveedorId)
+        throw new BadRequestException('Debes seleccionar un proveedor');
+      const proveedor = await this.prisma.proveedor.findUnique({
+        where: { id: dto.proveedorId },
+      });
       if (!proveedor) throw new NotFoundException('Proveedor no encontrado');
     }
 
@@ -64,7 +74,9 @@ export class UsersService {
     await this.findOne(id);
 
     if (dto.rol === 'proveedor' && dto.proveedorId) {
-      const proveedor = await this.prisma.proveedor.findUnique({ where: { id: dto.proveedorId } });
+      const proveedor = await this.prisma.proveedor.findUnique({
+        where: { id: dto.proveedorId },
+      });
       if (!proveedor) throw new NotFoundException('Proveedor no encontrado');
     }
 

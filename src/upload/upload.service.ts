@@ -10,7 +10,8 @@ export class UploadService {
         { folder, resource_type: 'auto' },
         (error, result) => {
           if (error) return reject(error);
-          if (!result) return reject(new Error('No se obtuvo respuesta de Cloudinary'));
+          if (!result)
+            return reject(new Error('No se obtuvo respuesta de Cloudinary'));
           resolve(result.secure_url);
         },
       );

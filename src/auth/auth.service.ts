@@ -20,7 +20,9 @@ export class AuthService {
 
     // 1) Intentar como usuario por email (admin o proveedor "tipo user")
     if (identifier) {
-      const user = await this.prisma.user.findUnique({ where: { email: identifier } });
+      const user = await this.prisma.user.findUnique({
+        where: { email: identifier },
+      });
       if (user && user.activo) {
         const valid = await bcrypt.compare(password, user.password);
         if (valid) {
@@ -30,12 +32,18 @@ export class AuthService {
           // para que /pedidos/mis-pedidos funcione con proveedorId en el token.
           if (userRol === 'proveedor') {
             if (!user.proveedorId) {
-              throw new UnauthorizedException('Usuario proveedor sin proveedor vinculado');
+              throw new UnauthorizedException(
+                'Usuario proveedor sin proveedor vinculado',
+              );
             }
 
-            const proveedor = await this.prisma.proveedor.findUnique({ where: { id: user.proveedorId } });
+            const proveedor = await this.prisma.proveedor.findUnique({
+              where: { id: user.proveedorId },
+            });
             if (!proveedor || !proveedor.activo) {
-              throw new UnauthorizedException('Proveedor no encontrado o inactivo');
+              throw new UnauthorizedException(
+                'Proveedor no encontrado o inactivo',
+              );
             }
 
             const token = this.jwtService.sign({
@@ -84,7 +92,10 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales incorrectas');
     }
 
-    const validProveedor = await bcrypt.compare(password, proveedor.passwordAcceso);
+    const validProveedor = await bcrypt.compare(
+      password,
+      proveedor.passwordAcceso,
+    );
     if (!validProveedor) {
       throw new UnauthorizedException('Credenciales incorrectas');
     }

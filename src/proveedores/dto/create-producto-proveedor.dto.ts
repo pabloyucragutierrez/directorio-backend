@@ -10,27 +10,39 @@ export class CreateProductoProveedorDto {
   @ApiPropertyOptional({ example: 'Camisa de algodón 100%' })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => (value === '' || value === null ? undefined : value))
+  @Transform(({ value }) =>
+    value === '' || value === null ? undefined : value,
+  )
   descripcion?: string;
 
-  @ApiPropertyOptional({ example: 120.00 })
+  @ApiPropertyOptional({ example: 120.0 })
   @IsOptional()
   @IsNumber()
   @IsPositive()
-  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : Number(value)))
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? undefined
+      : Number(value),
+  )
   precioNacional?: number;
 
-  @ApiPropertyOptional({ example: 35.00 })
+  @ApiPropertyOptional({ example: 35.0 })
   @IsOptional()
   @IsNumber()
   @IsPositive()
-  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : Number(value)))
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? undefined
+      : Number(value),
+  )
   precioDolar?: number;
 
   @ApiPropertyOptional({ example: 'PEN' })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => (value === '' || value === null ? undefined : value))
+  @Transform(({ value }) =>
+    value === '' || value === null ? undefined : value,
+  )
   moneda?: string;
 
   @ApiPropertyOptional()
