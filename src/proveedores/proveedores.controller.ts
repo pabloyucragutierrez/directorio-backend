@@ -152,6 +152,12 @@ export class ProveedoresController {
     return this.proveedoresService.getRubros();
   }
 
+  @Get('subrubros')
+  @ApiOperation({ summary: 'Listar subrubros disponibles (distinct)' })
+  getSubrubros() {
+    return this.proveedoresService.getSubrubros();
+  }
+
   @Get('stats')
   @ApiOperation({ summary: 'EstadÃ­sticas del dashboard' })
   getStats() {

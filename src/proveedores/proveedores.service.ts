@@ -308,6 +308,19 @@ export class ProveedoresService {
       .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
   }
 
+  async getSubrubros() {
+    const rows = await this.prisma.proveedor.findMany({
+      where: { subrubro: { not: null } },
+      select: { subrubro: true },
+      distinct: ['subrubro'],
+    });
+
+    return rows
+      .map((r) => (r.subrubro ?? '').trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }
+
   async findOne(id: number) {
     const proveedor = await this.prisma.proveedor.findUnique({
       where: { id },
