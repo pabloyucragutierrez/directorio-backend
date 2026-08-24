@@ -156,6 +156,7 @@ export class ProveedoresService {
 
   async findConsultasPaged(params: {
     search?: string;
+    pais?: string;
     rubro?: string;
     ciudad?: string;
     subrubro?: string;
@@ -163,6 +164,7 @@ export class ProveedoresService {
     limit?: number;
   }) {
     const search = params.search?.trim() || undefined;
+    const pais = params.pais?.trim() || undefined;
     const rubro = params.rubro?.trim() || undefined;
     const ciudad = params.ciudad?.trim() || undefined;
     const subrubro = params.subrubro?.trim() || undefined;
@@ -194,6 +196,12 @@ export class ProveedoresService {
 
     if (rubro) {
       conditions.push(Prisma.sql`lower(p."rubro") = lower(${rubro})`);
+    }
+
+    if (pais) {
+      conditions.push(
+        Prisma.sql`${Prisma.raw(normCol('p."pais"'))} = ${normalizeSearchTerm(pais)}`,
+      );
     }
 
     if (ciudad) {

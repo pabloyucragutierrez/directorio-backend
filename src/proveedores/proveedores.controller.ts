@@ -105,8 +105,17 @@ export class ProveedoresController {
     summary: 'Listar proveedores para consultas (paginado para scroll)',
   })
   @ApiQuery({ name: 'search', required: false })
-  @ApiQuery({ name: 'ciudad', required: false, description: 'Filtro parcial por ciudad' })
-  @ApiQuery({ name: 'subrubro', required: false, description: 'Filtro parcial por subrubro' })
+  @ApiQuery({ name: 'pais', required: false, description: 'Filtro por país' })
+  @ApiQuery({
+    name: 'ciudad',
+    required: false,
+    description: 'Filtro parcial por ciudad',
+  })
+  @ApiQuery({
+    name: 'subrubro',
+    required: false,
+    description: 'Filtro parcial por subrubro',
+  })
   @ApiQuery({
     name: 'cursor',
     required: false,
@@ -119,6 +128,7 @@ export class ProveedoresController {
   })
   findConsultasPaged(
     @Query('search') search?: string,
+    @Query('pais') pais?: string,
     @Query('rubro') rubro?: string,
     @Query('ciudad') ciudad?: string,
     @Query('subrubro') subrubro?: string,
@@ -127,6 +137,7 @@ export class ProveedoresController {
   ) {
     return this.proveedoresService.findConsultasPaged({
       search,
+      pais,
       rubro,
       ciudad,
       subrubro,
