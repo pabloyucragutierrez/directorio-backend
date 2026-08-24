@@ -158,6 +158,13 @@ export class ProveedoresController {
     return this.proveedoresService.getSubrubros();
   }
 
+  @Get('ciudades')
+  @ApiOperation({ summary: 'Listar ciudades disponibles (distinct)' })
+  @ApiQuery({ name: 'pais', required: false, description: 'Limitar ciudades a un país' })
+  getCiudades(@Query('pais') pais?: string) {
+    return this.proveedoresService.getCiudades(pais);
+  }
+
   @Get('stats')
   @ApiOperation({ summary: 'EstadÃ­sticas del dashboard' })
   getStats() {

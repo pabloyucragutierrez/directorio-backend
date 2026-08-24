@@ -321,6 +321,22 @@ export class ProveedoresService {
       .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
   }
 
+  async getCiudades(pais?: string) {
+    const rows = await this.prisma.proveedor.findMany({
+      where: {
+        ciudad: { not: null },
+        ...(pais?.trim() ? { pais: { equals: pais.trim(), mode: 'insensitive' } } : {}),
+      },
+      select: { ciudad: true },
+      distinct: ['ciudad'],
+    });
+
+    return rows
+      .map((r) => (r.ciudad ?? '').trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }
+
   async findOne(id: number) {
     const proveedor = await this.prisma.proveedor.findUnique({
       where: { id },
