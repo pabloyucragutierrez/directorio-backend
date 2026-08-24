@@ -324,7 +324,6 @@ export class ProveedoresService {
   async getCiudades(pais?: string) {
     const rows = await this.prisma.proveedor.findMany({
       where: {
-        ciudad: { not: null },
         ...(pais?.trim() ? { pais: { equals: pais.trim(), mode: 'insensitive' } } : {}),
       },
       select: { ciudad: true },
