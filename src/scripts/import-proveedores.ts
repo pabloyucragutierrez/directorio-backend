@@ -6,7 +6,7 @@ import {
   resolverCodigoPais,
 } from '../proveedores/codigo-proveedor';
 
-type ProveedorImportable = {
+export type ProveedorImportable = {
   razonSocial: string;
   pais: string;
   ciudad: string;
@@ -192,7 +192,7 @@ function websiteKey(value?: string | null): string | undefined {
   }
 }
 
-type ExistingProvider = {
+export type ExistingProvider = {
   id: number;
   razonSocial: string;
   ciudad: string;
@@ -206,11 +206,19 @@ type ExistingProvider = {
 
 type ProviderIndexes = {
   byNameCity: Map<string, ExistingProvider>;
-  byUniqueName: Map<string, ExistingProvider | null>;
   byEmail: Map<string, ExistingProvider>;
   byContact: Map<string, ExistingProvider>;
   byWebsite: Map<string, ExistingProvider>;
 };
+
+function createProviderIndexes(): ProviderIndexes {
+  return {
+    byNameCity: new Map<string, ExistingProvider>(),
+    byEmail: new Map<string, ExistingProvider>(),
+    byContact: new Map<string, ExistingProvider>(),
+    byWebsite: new Map<string, ExistingProvider>(),
+  };
+}
 
 function registerProvider(
   provider: ExistingProvider,
@@ -221,13 +229,6 @@ function registerProvider(
       `${provider.codigoPais}:${normalizeText(provider.razonSocial)}:${normalizeText(provider.ciudad)}`,
       provider,
     );
-
-    const nameKey = `${provider.codigoPais}:${normalizeText(provider.razonSocial)}`;
-    if (!indexes.byUniqueName.has(nameKey)) {
-      indexes.byUniqueName.set(nameKey, provider);
-    } else if (indexes.byUniqueName.get(nameKey)?.id !== provider.id) {
-      indexes.byUniqueName.set(nameKey, null);
-    }
   }
   if (provider.codigoPais && provider.email) {
     indexes.byEmail.set(
@@ -254,20 +255,13 @@ function findDuplicate(
 ):
   | {
       provider: ExistingProvider;
-      reason: 'name-city' | 'unique-name' | 'email' | 'contact' | 'website';
+      reason: 'name-city' | 'email' | 'contact' | 'website';
     }
   | undefined {
   const byName = indexes.byNameCity.get(
     `${codigoPais}:${normalizeText(proveedor.razonSocial)}:${normalizeText(proveedor.ciudad)}`,
   );
   if (byName) return { provider: byName, reason: 'name-city' };
-
-  const byUniqueName = indexes.byUniqueName.get(
-    `${codigoPais}:${normalizeText(proveedor.razonSocial)}`,
-  );
-  if (byUniqueName) {
-    return { provider: byUniqueName, reason: 'unique-name' };
-  }
 
   if (proveedor.email) {
     const byEmail = indexes.byEmail.get(
@@ -291,6 +285,16 @@ function findDuplicate(
   }
 
   return undefined;
+}
+
+export function duplicateReason(
+  proveedor: ProveedorImportable,
+  codigoPais: string,
+  existing: ExistingProvider[],
+): 'name-city' | 'email' | 'contact' | 'website' | undefined {
+  const indexes = createProviderIndexes();
+  for (const provider of existing) registerProvider(provider, indexes);
+  return findDuplicate(proveedor, codigoPais, indexes)?.reason;
 }
 
 async function generarCodigoProveedor(
@@ -373,13 +377,7 @@ async function main() {
           website: true,
         },
       });
-      const indexes = {
-        byNameCity: new Map<string, ExistingProvider>(),
-        byUniqueName: new Map<string, ExistingProvider | null>(),
-        byEmail: new Map<string, ExistingProvider>(),
-        byContact: new Map<string, ExistingProvider>(),
-        byWebsite: new Map<string, ExistingProvider>(),
-      };
+      const indexes = createProviderIndexes();
       for (const provider of existing) registerProvider(provider, indexes);
 
       const rows: Array<{
