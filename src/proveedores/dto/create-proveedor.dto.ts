@@ -7,9 +7,16 @@ import {
   IsIn,
   IsObject,
   IsOptional,
+  IsArray,
+  ValidateNested,
   MinLength,
 } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
+import {
+  plainToInstance,
+  Transform,
+  TransformFnParams,
+  Type,
+} from 'class-transformer';
 import { ESTADOS_VERIFICACION } from '../codigo-proveedor';
 
 function parseJson(value: unknown): unknown {
@@ -20,6 +27,37 @@ function parseJson(value: unknown): unknown {
   } catch {
     return value;
   }
+}
+
+function emptyToUndefined(value: unknown): unknown {
+  return value === '' ? undefined : value;
+}
+
+function normalizeVerificationStatus(value: unknown): unknown {
+  return typeof value === 'string' ? value.trim().toUpperCase() : value;
+}
+
+export class ProveedorRubroDto {
+  @ApiProperty({ example: 'Comidas' })
+  @IsString()
+  rubro!: string;
+
+  @ApiPropertyOptional({ example: 'Restaurante' })
+  @IsOptional()
+  @IsString()
+  subrubro?: string;
+
+  @ApiPropertyOptional({ example: 'Comida peruana y menús ejecutivos' })
+  @IsOptional()
+  @IsString()
+  productosComercializa?: string;
+}
+
+function parseRubros(value: unknown): unknown {
+  const parsed = parseJson(value);
+  if (!Array.isArray(parsed)) return parsed;
+
+  return parsed.map((item) => plainToInstance(ProveedorRubroDto, item));
 }
 
 export class CreateProveedorDto {
@@ -71,6 +109,19 @@ export class CreateProveedorDto {
   @IsOptional()
   @IsString()
   productosComercializa?: string;
+
+  @ApiPropertyOptional({
+    type: [ProveedorRubroDto],
+    description:
+      'Rubros y subrubros asociados. En multipart/form-data se envía como JSON; el primero es el principal.',
+  })
+  @IsOptional()
+  @Transform((params: TransformFnParams) =>
+    parseRubros(params.value as unknown),
+  )
+  @IsArray()
+  @ValidateNested({ each: true })
+  rubros?: ProveedorRubroDto[];
 
   @ApiPropertyOptional({ description: 'Persona de contacto comercial' })
   @IsOptional()
@@ -146,7 +197,9 @@ export class CreateProveedorDto {
   @ApiPropertyOptional({ example: 'Comentario adicional' })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => (value === '' ? undefined : value))
+  @Transform((params: TransformFnParams) =>
+    emptyToUndefined(params.value as unknown),
+  )
   comentarios?: string;
 
   @ApiPropertyOptional({
@@ -156,8 +209,8 @@ export class CreateProveedorDto {
       'VE=verificado, NV=no verificado, NF=no encontrado, IN=inferido',
   })
   @IsOptional()
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  @Transform((params: TransformFnParams) =>
+    normalizeVerificationStatus(params.value as unknown),
   )
   @IsIn(ESTADOS_VERIFICACION)
   estadoVerificacion?: (typeof ESTADOS_VERIFICACION)[number];
@@ -201,13 +254,17 @@ export class CreateProveedorDto {
   @ApiPropertyOptional({ example: 'IMPO-123456' })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => (value === '' ? undefined : value))
+  @Transform((params: TransformFnParams) =>
+    emptyToUndefined(params.value as unknown),
+  )
   usuarioAcceso?: string;
 
   @ApiPropertyOptional({ example: 'miPassword123' })
   @IsOptional()
   @IsString()
   @MinLength(6)
-  @Transform(({ value }) => (value === '' ? undefined : value))
+  @Transform((params: TransformFnParams) =>
+    emptyToUndefined(params.value as unknown),
+  )
   passwordAcceso?: string;
 }

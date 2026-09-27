@@ -107,6 +107,11 @@ export class ProveedoresController {
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'pais', required: false, description: 'Filtro por país' })
   @ApiQuery({
+    name: 'rubro',
+    required: false,
+    description: 'Filtro exacto por cualquiera de los rubros asociados',
+  })
+  @ApiQuery({
     name: 'ciudad',
     required: false,
     description: 'Filtro parcial por ciudad',
@@ -160,7 +165,11 @@ export class ProveedoresController {
 
   @Get('ciudades')
   @ApiOperation({ summary: 'Listar ciudades disponibles (distinct)' })
-  @ApiQuery({ name: 'pais', required: false, description: 'Limitar ciudades a un país' })
+  @ApiQuery({
+    name: 'pais',
+    required: false,
+    description: 'Limitar ciudades a un país',
+  })
   getCiudades(@Query('pais') pais?: string) {
     return this.proveedoresService.getCiudades(pais);
   }

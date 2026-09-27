@@ -12,6 +12,7 @@ import { UploadService } from '../upload/upload.service';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { formarCodigoProveedor, resolverCodigoPais } from './codigo-proveedor';
+import { normalizarAsignacionesRubro } from './proveedor-rubros';
 
 function removeDiacritics(value: string) {
   return value.normalize('NFD').replace(/\p{Diacritic}/gu, '');
@@ -77,8 +78,18 @@ export class ProveedoresService {
       copiaDni?: Express.Multer.File[];
     },
   ) {
-    const dtoRest = dto as any;
+    const { rubros: rubrosDto, evidenciaVerificacion, ...dtoRest } = dto;
     const codigoPais = this.obtenerCodigoPais(dto.pais);
+    const rubros = normalizarAsignacionesRubro(rubrosDto, {
+      rubro: dto.rubro,
+      subrubro: dto.subrubro,
+      productosComercializa: dto.productosComercializa,
+      fuenteVerificacion: dto.fuenteVerificacion,
+      evidenciaVerificacion: evidenciaVerificacion as
+        | Prisma.InputJsonValue
+        | undefined,
+    });
+    const rubroPrincipal = rubros[0];
 
     if (
       (dtoRest.usuarioAcceso && !dtoRest.passwordAcceso) ||
@@ -139,14 +150,35 @@ export class ProveedoresService {
       return tx.proveedor.create({
         data: {
           ...dtoRest,
+          ...(evidenciaVerificacion !== undefined && {
+            evidenciaVerificacion:
+              evidenciaVerificacion as Prisma.InputJsonValue,
+          }),
           codigoProveedor,
           codigoPais,
+          rubro: rubroPrincipal?.rubro ?? dto.rubro,
+          subrubro: rubroPrincipal?.subrubro || dto.subrubro,
+          productosComercializa:
+            rubroPrincipal?.productosComercializa ?? dto.productosComercializa,
           estadoVerificacion,
           fechaVerificacion,
           ...(passwordHash && { passwordAcceso: passwordHash }),
           copiaRucUrl,
           copiaLicenciaUrl,
           copiaDniUrl,
+          ...(rubros.length > 0 && {
+            rubros: {
+              create: rubros.map((item, index) => ({
+                ...item,
+                esPrincipal: index === 0,
+              })),
+            },
+          }),
+        },
+        include: {
+          rubros: {
+            orderBy: [{ esPrincipal: 'desc' }, { id: 'asc' }],
+          },
         },
       });
     });
@@ -161,11 +193,24 @@ export class ProveedoresService {
               { codigoProveedor: { contains: search, mode: 'insensitive' } },
               { pais: { contains: search, mode: 'insensitive' } },
               { rubro: { contains: search, mode: 'insensitive' } },
+              {
+                rubros: {
+                  some: {
+                    OR: [
+                      { rubro: { contains: search, mode: 'insensitive' } },
+                      { subrubro: { contains: search, mode: 'insensitive' } },
+                    ],
+                  },
+                },
+              },
               { ruc: { contains: search } },
             ],
           }
         : undefined,
       orderBy: { createdAt: 'desc' },
+      include: {
+        rubros: { orderBy: [{ esPrincipal: 'desc' }, { id: 'asc' }] },
+      },
     });
   }
 
@@ -193,6 +238,16 @@ export class ProveedoresService {
             { codigoProveedor: { contains: search, mode: 'insensitive' } },
             { pais: { contains: search, mode: 'insensitive' } },
             { rubro: { contains: search, mode: 'insensitive' } },
+            {
+              rubros: {
+                some: {
+                  OR: [
+                    { rubro: { contains: search, mode: 'insensitive' } },
+                    { subrubro: { contains: search, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            },
             { ruc: { contains: search } },
           ],
         }
@@ -203,6 +258,9 @@ export class ProveedoresService {
       orderBy: { id: 'desc' },
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       take: take + 1,
+      include: {
+        rubros: { orderBy: [{ esPrincipal: 'desc' }, { id: 'asc' }] },
+      },
     });
 
     const hasMore = rows.length > take;
@@ -253,7 +311,12 @@ export class ProveedoresService {
     }
 
     if (rubro) {
-      conditions.push(Prisma.sql`lower(p."rubro") = lower(${rubro})`);
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1
+        FROM "ProveedorRubro" pr
+        WHERE pr."proveedorId" = p.id
+          AND lower(pr."rubro") = lower(${rubro})
+      )`);
     }
 
     if (pais) {
@@ -270,7 +333,12 @@ export class ProveedoresService {
 
     if (subrubro) {
       conditions.push(
-        Prisma.sql`${Prisma.raw(normCol('p."subrubro"'))} LIKE '%' || ${normalizeSearchTerm(subrubro)} || '%'`,
+        Prisma.sql`EXISTS (
+          SELECT 1
+          FROM "ProveedorRubro" pr
+          WHERE pr."proveedorId" = p.id
+            AND ${Prisma.raw(normCol('pr."subrubro"'))} LIKE '%' || ${normalizeSearchTerm(subrubro)} || '%'
+        )`,
       );
     }
 
@@ -280,9 +348,16 @@ export class ProveedoresService {
           ${Prisma.raw(normCol('p."razonSocial"'))} LIKE '%' || ${normalizedSearch} || '%'
           OR lower(p."codigoProveedor") LIKE '%' || ${normalizedSearch} || '%'
           OR ${Prisma.raw(normCol('p."pais"'))} LIKE '%' || ${normalizedSearch} || '%'
-          OR ${Prisma.raw(normCol('p."rubro"'))} LIKE '%' || ${normalizedSearch} || '%'
           OR ${Prisma.raw(normCol('p."ciudad"'))} LIKE '%' || ${normalizedSearch} || '%'
-          OR ${Prisma.raw(normCol('p."subrubro"'))} LIKE '%' || ${normalizedSearch} || '%'
+          OR EXISTS (
+            SELECT 1
+            FROM "ProveedorRubro" pr
+            WHERE pr."proveedorId" = p.id
+              AND (
+                ${Prisma.raw(normCol('pr."rubro"'))} LIKE '%' || ${normalizedSearch} || '%'
+                OR ${Prisma.raw(normCol('pr."subrubro"'))} LIKE '%' || ${normalizedSearch} || '%'
+              )
+          )
           OR p."ruc" LIKE '%' || ${search} || '%'
         )`,
       );
@@ -337,6 +412,16 @@ export class ProveedoresService {
         razonSocial: true,
         pais: true,
         rubro: true,
+        rubros: {
+          orderBy: [{ esPrincipal: 'desc' }, { id: 'asc' }],
+          select: {
+            id: true,
+            rubro: true,
+            subrubro: true,
+            productosComercializa: true,
+            esPrincipal: true,
+          },
+        },
         estadoVerificacion: true,
         activo: true,
         pedidos: {
@@ -357,8 +442,8 @@ export class ProveedoresService {
   }
 
   async getRubros() {
-    const rows = await this.prisma.proveedor.findMany({
-      where: { rubro: { not: null } },
+    const rows = await this.prisma.proveedorRubro.findMany({
+      where: { rubro: { not: '' } },
       select: { rubro: true },
       distinct: ['rubro'],
     });
@@ -370,8 +455,8 @@ export class ProveedoresService {
   }
 
   async getSubrubros() {
-    const rows = await this.prisma.proveedor.findMany({
-      where: { subrubro: { not: null } },
+    const rows = await this.prisma.proveedorRubro.findMany({
+      where: { subrubro: { not: '' } },
       select: { subrubro: true },
       distinct: ['subrubro'],
     });
@@ -402,7 +487,10 @@ export class ProveedoresService {
   async findOne(id: number) {
     const proveedor = await this.prisma.proveedor.findUnique({
       where: { id },
-      include: { pedidos: { orderBy: { createdAt: 'desc' } } },
+      include: {
+        rubros: { orderBy: [{ esPrincipal: 'desc' }, { id: 'asc' }] },
+        pedidos: { orderBy: { createdAt: 'desc' } },
+      },
     });
     if (!proveedor) throw new NotFoundException('Proveedor no encontrado');
     return proveedor;
@@ -438,14 +526,29 @@ export class ProveedoresService {
         )
       : undefined;
 
-    const dtoRest = dto as any;
+    const { rubros: rubrosDto, evidenciaVerificacion, ...dtoRest } = dto;
+    const rubrosFueronEnviados = rubrosDto !== undefined;
+    const rubros = rubrosFueronEnviados
+      ? normalizarAsignacionesRubro(rubrosDto)
+      : [];
+    const rubroPrincipal = rubros[0];
 
-    const data: any = {
+    const data: Prisma.ProveedorUpdateInput = {
       ...dtoRest,
+      ...(evidenciaVerificacion !== undefined && {
+        evidenciaVerificacion: evidenciaVerificacion as Prisma.InputJsonValue,
+      }),
       ...(copiaRucUrl && { copiaRucUrl }),
       ...(copiaLicenciaUrl && { copiaLicenciaUrl }),
       ...(copiaDniUrl && { copiaDniUrl }),
     };
+
+    if (rubrosFueronEnviados) {
+      data.rubro = rubroPrincipal?.rubro ?? null;
+      data.subrubro = rubroPrincipal?.subrubro || null;
+      data.productosComercializa =
+        rubroPrincipal?.productosComercializa ?? null;
+    }
 
     if (dtoRest.passwordAcceso) {
       data.passwordAcceso = await bcrypt.hash(dtoRest.passwordAcceso, 10);
@@ -475,21 +578,86 @@ export class ProveedoresService {
       data.fechaVerificacion = new Date();
     }
 
-    if (!proveedorActual.codigoProveedor && codigoPais) {
-      return this.prisma.$transaction(async (tx) => {
+    const cambioRubroLegacy =
+      !rubrosFueronEnviados &&
+      (dto.rubro !== undefined ||
+        dto.subrubro !== undefined ||
+        dto.productosComercializa !== undefined);
+
+    return this.prisma.$transaction(async (tx) => {
+      if (!proveedorActual.codigoProveedor && codigoPais) {
         const codigoProveedor = await this.generarCodigoProveedor(
           tx,
           codigoPais,
         );
+        data.codigoPais = codigoPais;
+        data.codigoProveedor = codigoProveedor;
+      }
 
-        return tx.proveedor.update({
-          where: { id },
-          data: { ...data, codigoPais, codigoProveedor },
+      await tx.proveedor.update({ where: { id }, data });
+
+      if (rubrosFueronEnviados) {
+        await tx.proveedorRubro.deleteMany({ where: { proveedorId: id } });
+        if (rubros.length > 0) {
+          await tx.proveedorRubro.createMany({
+            data: rubros.map((item, index) => ({
+              proveedorId: id,
+              ...item,
+              esPrincipal: index === 0,
+            })),
+          });
+        }
+      } else if (cambioRubroLegacy) {
+        const [principalLegacy] = normalizarAsignacionesRubro(undefined, {
+          rubro: dto.rubro ?? proveedorActual.rubro,
+          subrubro: dto.subrubro ?? proveedorActual.subrubro,
+          productosComercializa:
+            dto.productosComercializa ?? proveedorActual.productosComercializa,
+          fuenteVerificacion: proveedorActual.fuenteVerificacion,
+          evidenciaVerificacion: proveedorActual.evidenciaVerificacion as
+            | Prisma.InputJsonValue
+            | undefined,
         });
-      });
-    }
 
-    return this.prisma.proveedor.update({ where: { id }, data });
+        await tx.proveedorRubro.deleteMany({
+          where: { proveedorId: id, esPrincipal: true },
+        });
+
+        if (principalLegacy) {
+          const existente = await tx.proveedorRubro.findFirst({
+            where: {
+              proveedorId: id,
+              rubro: principalLegacy.rubro,
+              subrubro: principalLegacy.subrubro,
+            },
+            select: { id: true },
+          });
+
+          if (existente) {
+            await tx.proveedorRubro.update({
+              where: { id: existente.id },
+              data: { ...principalLegacy, esPrincipal: true },
+            });
+          } else {
+            await tx.proveedorRubro.create({
+              data: {
+                proveedorId: id,
+                ...principalLegacy,
+                esPrincipal: true,
+              },
+            });
+          }
+        }
+      }
+
+      return tx.proveedor.findUnique({
+        where: { id },
+        include: {
+          rubros: { orderBy: [{ esPrincipal: 'desc' }, { id: 'asc' }] },
+          pedidos: { orderBy: { createdAt: 'desc' } },
+        },
+      });
+    });
   }
 
   async remove(id: number) {

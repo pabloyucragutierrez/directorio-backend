@@ -65,7 +65,28 @@ model Proveedor {
 
   pedidos   Pedido[]
   productos ProductoProveedor[]
+  rubros    ProveedorRubro[]
   usuarios  User[]
+}
+
+model ProveedorRubro {
+  id                    Int       @id @default(autoincrement())
+  proveedorId           Int
+  proveedor             Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  rubro                 String
+  subrubro              String    @default("")
+  productosComercializa String?   @db.Text
+  fuenteVerificacion    String?   @db.Text
+  evidenciaVerificacion Json?
+  esPrincipal           Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([proveedorId, rubro, subrubro])
+  @@index([proveedorId])
+  @@index([rubro])
+  @@index([subrubro])
+  @@index([rubro, subrubro])
 }
 
 model SecuenciaProveedorPais {

@@ -193,7 +193,9 @@ function websiteKey(value?: string | null): string | undefined {
 }
 
 type ExistingProvider = {
+  id: number;
   razonSocial: string;
+  ciudad: string;
   codigoPais: string | null;
   codigoProveedor: string | null;
   email: string | null;
@@ -202,20 +204,30 @@ type ExistingProvider = {
   website: string | null;
 };
 
+type ProviderIndexes = {
+  byNameCity: Map<string, ExistingProvider>;
+  byUniqueName: Map<string, ExistingProvider | null>;
+  byEmail: Map<string, ExistingProvider>;
+  byContact: Map<string, ExistingProvider>;
+  byWebsite: Map<string, ExistingProvider>;
+};
+
 function registerProvider(
   provider: ExistingProvider,
-  indexes: {
-    byName: Map<string, ExistingProvider>;
-    byEmail: Map<string, ExistingProvider>;
-    byContact: Map<string, ExistingProvider>;
-    byWebsite: Map<string, ExistingProvider>;
-  },
+  indexes: ProviderIndexes,
 ) {
   if (provider.codigoPais) {
-    indexes.byName.set(
-      `${provider.codigoPais}:${normalizeText(provider.razonSocial)}`,
+    indexes.byNameCity.set(
+      `${provider.codigoPais}:${normalizeText(provider.razonSocial)}:${normalizeText(provider.ciudad)}`,
       provider,
     );
+
+    const nameKey = `${provider.codigoPais}:${normalizeText(provider.razonSocial)}`;
+    if (!indexes.byUniqueName.has(nameKey)) {
+      indexes.byUniqueName.set(nameKey, provider);
+    } else if (indexes.byUniqueName.get(nameKey)?.id !== provider.id) {
+      indexes.byUniqueName.set(nameKey, null);
+    }
   }
   if (provider.codigoPais && provider.email) {
     indexes.byEmail.set(
@@ -238,35 +250,47 @@ function registerProvider(
 function findDuplicate(
   proveedor: ProveedorImportable,
   codigoPais: string,
-  indexes: {
-    byName: Map<string, ExistingProvider>;
-    byEmail: Map<string, ExistingProvider>;
-    byContact: Map<string, ExistingProvider>;
-    byWebsite: Map<string, ExistingProvider>;
-  },
-): ExistingProvider | undefined {
-  const byName = indexes.byName.get(
+  indexes: ProviderIndexes,
+):
+  | {
+      provider: ExistingProvider;
+      reason: 'name-city' | 'unique-name' | 'email' | 'contact' | 'website';
+    }
+  | undefined {
+  const byName = indexes.byNameCity.get(
+    `${codigoPais}:${normalizeText(proveedor.razonSocial)}:${normalizeText(proveedor.ciudad)}`,
+  );
+  if (byName) return { provider: byName, reason: 'name-city' };
+
+  const byUniqueName = indexes.byUniqueName.get(
     `${codigoPais}:${normalizeText(proveedor.razonSocial)}`,
   );
-  if (byName) return byName;
+  if (byUniqueName) {
+    return { provider: byUniqueName, reason: 'unique-name' };
+  }
 
   if (proveedor.email) {
     const byEmail = indexes.byEmail.get(
       scopedKey(codigoPais, proveedor.email.toLowerCase()),
     );
-    if (byEmail) return byEmail;
+    if (byEmail) return { provider: byEmail, reason: 'email' };
   }
+
+  const web = websiteKey(proveedor.website);
+  const byWebsite = web
+    ? indexes.byWebsite.get(scopedKey(codigoPais, web))
+    : undefined;
+  if (byWebsite) return { provider: byWebsite, reason: 'website' };
 
   for (const key of [
     ...contactKeys(proveedor.telefono, codigoPais),
     ...contactKeys(proveedor.whatsapp, codigoPais),
   ]) {
     const byContact = indexes.byContact.get(key);
-    if (byContact) return byContact;
+    if (byContact) return { provider: byContact, reason: 'contact' };
   }
 
-  const web = websiteKey(proveedor.website);
-  return web ? indexes.byWebsite.get(scopedKey(codigoPais, web)) : undefined;
+  return undefined;
 }
 
 async function generarCodigoProveedor(
@@ -297,6 +321,8 @@ async function generarCodigoProveedor(
 }
 
 async function main() {
+  const associationsOnly =
+    process.env.SUPPLIER_IMPORT_ASSOCIATIONS_ONLY === 'true';
   const importFile = process.env.SUPPLIER_IMPORT_BATCH_FILE;
   const compressedPartCount = Number(
     process.env.SUPPLIER_IMPORT_GZIP_PART_COUNT ?? 0,
@@ -336,7 +362,9 @@ async function main() {
     async (tx) => {
       const existing = await tx.proveedor.findMany({
         select: {
+          id: true,
           razonSocial: true,
+          ciudad: true,
           codigoPais: true,
           codigoProveedor: true,
           email: true,
@@ -346,7 +374,8 @@ async function main() {
         },
       });
       const indexes = {
-        byName: new Map<string, ExistingProvider>(),
+        byNameCity: new Map<string, ExistingProvider>(),
+        byUniqueName: new Map<string, ExistingProvider | null>(),
         byEmail: new Map<string, ExistingProvider>(),
         byContact: new Map<string, ExistingProvider>(),
         byWebsite: new Map<string, ExistingProvider>(),
@@ -355,7 +384,7 @@ async function main() {
 
       const rows: Array<{
         razonSocial: string;
-        estado: 'CREATED' | 'SKIPPED';
+        estado: 'CREATED' | 'ASSOCIATED' | 'SKIPPED';
         codigoProveedor: string | null;
       }> = [];
 
@@ -367,13 +396,40 @@ async function main() {
           );
         }
 
-        const duplicado = findDuplicate(proveedor, codigoPais, indexes);
+        const duplicateMatch = findDuplicate(proveedor, codigoPais, indexes);
 
-        if (duplicado) {
+        if (duplicateMatch) {
+          const { provider: duplicado, reason } = duplicateMatch;
+          const association =
+            reason === 'contact'
+              ? { count: 0 }
+              : await tx.proveedorRubro.createMany({
+                  data: [
+                    {
+                      proveedorId: duplicado.id,
+                      rubro: proveedor.rubro,
+                      subrubro: proveedor.subrubro,
+                      productosComercializa: proveedor.productosComercializa,
+                      fuenteVerificacion: proveedor.fuenteVerificacion,
+                      evidenciaVerificacion: proveedor.evidenciaVerificacion,
+                      esPrincipal: false,
+                    },
+                  ],
+                  skipDuplicates: true,
+                });
           rows.push({
             razonSocial: duplicado.razonSocial,
-            estado: 'SKIPPED',
+            estado: association.count > 0 ? 'ASSOCIATED' : 'SKIPPED',
             codigoProveedor: duplicado.codigoProveedor,
+          });
+          continue;
+        }
+
+        if (associationsOnly) {
+          rows.push({
+            razonSocial: proveedor.razonSocial,
+            estado: 'SKIPPED',
+            codigoProveedor: null,
           });
           continue;
         }
@@ -408,8 +464,23 @@ async function main() {
               evidenciaVerificacion: proveedor.evidenciaVerificacion,
             }),
             activo: true,
+            rubros: {
+              create: {
+                rubro: proveedor.rubro,
+                subrubro: proveedor.subrubro,
+                productosComercializa: proveedor.productosComercializa,
+                fuenteVerificacion: proveedor.fuenteVerificacion,
+                evidenciaVerificacion: proveedor.evidenciaVerificacion,
+                esPrincipal: true,
+              },
+            },
           },
-          select: { razonSocial: true, codigoProveedor: true },
+          select: {
+            id: true,
+            razonSocial: true,
+            ciudad: true,
+            codigoProveedor: true,
+          },
         });
 
         rows.push({
@@ -439,11 +510,14 @@ async function main() {
   );
 
   const created = result.filter((row) => row.estado === 'CREATED');
+  const associated = result.filter((row) => row.estado === 'ASSOCIATED');
   const skipped = result.filter((row) => row.estado === 'SKIPPED');
   console.log(
     `IMPORT_RESULT_SUMMARY ${JSON.stringify({
       received: result.length,
+      associationsOnly,
       created: created.length,
+      associated: associated.length,
       skipped: skipped.length,
       firstCreatedCode: created[0]?.codigoProveedor ?? null,
       lastCreatedCode: created[created.length - 1]?.codigoProveedor ?? null,
