@@ -116,16 +116,63 @@ function normalizeText(value: string): string {
     .replace(/[^a-z0-9]+/g, '');
 }
 
-export function contactKeys(value?: string | null): string[] {
+const callingCodeByCountry: Record<string, string> = {
+  AR: '54',
+  BO: '591',
+  BR: '55',
+  CL: '56',
+  CO: '57',
+  EC: '593',
+  GT: '502',
+  MX: '52',
+  PE: '51',
+  PY: '595',
+  SV: '503',
+  UY: '598',
+};
+
+function stripCountryCallingCode(
+  digits: string,
+  codigoPais?: string | null,
+): string {
+  const callingCode = codigoPais
+    ? callingCodeByCountry[codigoPais.toUpperCase()]
+    : undefined;
+  if (!callingCode) return digits;
+
+  const internationalPrefix = `00${callingCode}`;
+  if (
+    digits.startsWith(internationalPrefix) &&
+    digits.length - internationalPrefix.length >= 7
+  ) {
+    return digits.slice(internationalPrefix.length);
+  }
+  if (
+    digits.startsWith(callingCode) &&
+    digits.length - callingCode.length >= 7
+  ) {
+    return digits.slice(callingCode.length);
+  }
+  return digits;
+}
+
+function scopedKey(codigoPais: string, value: string): string {
+  return `${codigoPais}:${value}`;
+}
+
+export function contactKeys(
+  value?: string | null,
+  codigoPais?: string | null,
+): string[] {
   if (!value) return [];
   const keys = value
     .split(/[\n,;|/]+/)
     .map((part) => part.replace(/\D/g, ''))
     .filter((digits) => digits.length >= 7)
+    .map((digits) => stripCountryCallingCode(digits, codigoPais))
+    .filter((digits) => digits.length >= 7)
     .map((digits) =>
-      digits.length === 11 && /^(51|56)/.test(digits)
-        ? digits.slice(2)
-        : digits,
+      codigoPais ? scopedKey(codigoPais.toUpperCase(), digits) : digits,
     );
   return [...new Set(keys)];
 }
@@ -170,16 +217,22 @@ function registerProvider(
       provider,
     );
   }
-  if (provider.email)
-    indexes.byEmail.set(provider.email.toLowerCase(), provider);
+  if (provider.codigoPais && provider.email) {
+    indexes.byEmail.set(
+      scopedKey(provider.codigoPais, provider.email.toLowerCase()),
+      provider,
+    );
+  }
   for (const key of [
-    ...contactKeys(provider.telefono),
-    ...contactKeys(provider.whatsapp),
+    ...contactKeys(provider.telefono, provider.codigoPais),
+    ...contactKeys(provider.whatsapp, provider.codigoPais),
   ]) {
     indexes.byContact.set(key, provider);
   }
   const web = websiteKey(provider.website);
-  if (web) indexes.byWebsite.set(web, provider);
+  if (provider.codigoPais && web) {
+    indexes.byWebsite.set(scopedKey(provider.codigoPais, web), provider);
+  }
 }
 
 function findDuplicate(
@@ -198,20 +251,22 @@ function findDuplicate(
   if (byName) return byName;
 
   if (proveedor.email) {
-    const byEmail = indexes.byEmail.get(proveedor.email.toLowerCase());
+    const byEmail = indexes.byEmail.get(
+      scopedKey(codigoPais, proveedor.email.toLowerCase()),
+    );
     if (byEmail) return byEmail;
   }
 
   for (const key of [
-    ...contactKeys(proveedor.telefono),
-    ...contactKeys(proveedor.whatsapp),
+    ...contactKeys(proveedor.telefono, codigoPais),
+    ...contactKeys(proveedor.whatsapp, codigoPais),
   ]) {
     const byContact = indexes.byContact.get(key);
     if (byContact) return byContact;
   }
 
   const web = websiteKey(proveedor.website);
-  return web ? indexes.byWebsite.get(web) : undefined;
+  return web ? indexes.byWebsite.get(scopedKey(codigoPais, web)) : undefined;
 }
 
 async function generarCodigoProveedor(
