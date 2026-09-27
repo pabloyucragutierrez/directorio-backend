@@ -116,14 +116,14 @@ function normalizeText(value: string): string {
     .replace(/[^a-z0-9]+/g, '');
 }
 
-function contactKeys(value?: string | null): string[] {
+export function contactKeys(value?: string | null): string[] {
   if (!value) return [];
   const keys = value
     .split(/[\n,;|/]+/)
     .map((part) => part.replace(/\D/g, ''))
     .filter((digits) => digits.length >= 7)
     .map((digits) =>
-      digits.length === 11 && digits.startsWith('51')
+      digits.length === 11 && /^(51|56)/.test(digits)
         ? digits.slice(2)
         : digits,
     );
