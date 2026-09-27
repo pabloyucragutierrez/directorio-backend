@@ -61,8 +61,11 @@ describe('importador de proveedores', () => {
     ).toThrow('se requiere teléfono, WhatsApp o email');
   });
 
-  it('normaliza contactos internacionales de Perú y Chile', () => {
-    expect(contactKeys('+51 999 888 777')).toEqual(['999888777']);
-    expect(contactKeys('+56 9 6363 6189')).toEqual(['963636189']);
+  it('normaliza y separa los contactos por país', () => {
+    expect(contactKeys('+51 999 888 777', 'PE')).toEqual(['PE:999888777']);
+    expect(contactKeys('+56 9 6363 6189', 'CL')).toEqual(['CL:963636189']);
+    expect(contactKeys('+57 300 123 4567', 'CO')).toEqual(['CO:3001234567']);
+    expect(contactKeys('300 123 4567', 'PE')).toEqual(['PE:3001234567']);
+    expect(contactKeys('300 123 4567', 'CO')).toEqual(['CO:3001234567']);
   });
 });
