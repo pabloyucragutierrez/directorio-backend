@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { gunzipSync } from 'node:zlib';
 import { Prisma, PrismaClient } from '@prisma/client';
 import {
   formarCodigoProveedor,
@@ -242,9 +243,29 @@ async function generarCodigoProveedor(
 
 async function main() {
   const importFile = process.env.SUPPLIER_IMPORT_BATCH_FILE;
-  const raw = importFile
-    ? await fs.readFile(importFile, 'utf8')
-    : process.env.SUPPLIER_IMPORT_BATCH_JSON;
+  const compressedPartCount = Number(
+    process.env.SUPPLIER_IMPORT_GZIP_PART_COUNT ?? 0,
+  );
+  let raw: string | undefined;
+
+  if (importFile) {
+    raw = await fs.readFile(importFile, 'utf8');
+  } else if (compressedPartCount > 0) {
+    if (!Number.isInteger(compressedPartCount) || compressedPartCount > 100) {
+      throw new Error('SUPPLIER_IMPORT_GZIP_PART_COUNT inválido');
+    }
+
+    const parts: string[] = [];
+    for (let index = 1; index <= compressedPartCount; index += 1) {
+      const name = `SUPPLIER_IMPORT_GZIP_PART_${String(index).padStart(3, '0')}`;
+      const part = process.env[name];
+      if (!part) throw new Error(`Falta la variable ${name}`);
+      parts.push(part);
+    }
+    raw = gunzipSync(Buffer.from(parts.join(''), 'base64')).toString('utf8');
+  } else {
+    raw = process.env.SUPPLIER_IMPORT_BATCH_JSON;
+  }
   if (!raw?.trim()) {
     console.log('IMPORT_RESULT []');
     return;
