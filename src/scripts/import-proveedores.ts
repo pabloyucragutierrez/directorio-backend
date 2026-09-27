@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import { Prisma, PrismaClient } from '@prisma/client';
 import {
   formarCodigoProveedor,
@@ -13,13 +14,13 @@ type ProveedorImportable = {
   rubro: string;
   subrubro: string;
   productosComercializa: string;
-  personaContacto: string;
+  personaContacto?: string;
   website?: string;
   redesSociales?: string;
   comentarios?: string;
-  email: string;
-  telefono: string;
-  whatsapp: string;
+  email?: string;
+  telefono?: string;
+  whatsapp?: string;
   fuenteVerificacion: string;
   fechaDiscovery?: string;
   evidenciaVerificacion?: Prisma.InputJsonValue;
@@ -45,7 +46,7 @@ function optionalText(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-function parseBatch(raw: string): ProveedorImportable[] {
+export function parseBatch(raw: string): ProveedorImportable[] {
   const parsed: unknown = JSON.parse(raw);
   if (!Array.isArray(parsed)) {
     throw new Error('SUPPLIER_IMPORT_BATCH_JSON debe contener un arreglo JSON');
@@ -57,9 +58,17 @@ function parseBatch(raw: string): ProveedorImportable[] {
     }
 
     const row = item as Record<string, unknown>;
-    const email = requiredText(row, 'email', index + 1).toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const email = optionalText(row.email)?.toLowerCase();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new Error(`Registro ${index + 1}: email inválido`);
+    }
+
+    const telefono = optionalText(row.telefono);
+    const whatsapp = optionalText(row.whatsapp);
+    if (!telefono && !whatsapp && !email) {
+      throw new Error(
+        `Registro ${index + 1}: se requiere teléfono, WhatsApp o email`,
+      );
     }
 
     const fechaDiscovery = optionalText(row.fechaDiscovery);
@@ -82,13 +91,13 @@ function parseBatch(raw: string): ProveedorImportable[] {
         'productosComercializa',
         index + 1,
       ),
-      personaContacto: requiredText(row, 'personaContacto', index + 1),
+      personaContacto: optionalText(row.personaContacto),
       website: optionalText(row.website),
       redesSociales: optionalText(row.redesSociales),
       comentarios: optionalText(row.comentarios),
       email,
-      telefono: requiredText(row, 'telefono', index + 1),
-      whatsapp: requiredText(row, 'whatsapp', index + 1),
+      telefono,
+      whatsapp,
       fuenteVerificacion: requiredText(row, 'fuenteVerificacion', index + 1),
       fechaDiscovery,
       evidenciaVerificacion: row.evidenciaVerificacion as
@@ -96,6 +105,112 @@ function parseBatch(raw: string): ProveedorImportable[] {
         | undefined,
     };
   });
+}
+
+function normalizeText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function contactKeys(value?: string | null): string[] {
+  if (!value) return [];
+  const keys = value
+    .split(/[\n,;|/]+/)
+    .map((part) => part.replace(/\D/g, ''))
+    .filter((digits) => digits.length >= 7)
+    .map((digits) =>
+      digits.length === 11 && digits.startsWith('51')
+        ? digits.slice(2)
+        : digits,
+    );
+  return [...new Set(keys)];
+}
+
+function websiteKey(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const first = value.split(/\s*\|\s*|\n/)[0]?.trim();
+  if (!first) return undefined;
+  try {
+    const parsed = new URL(first);
+    return `${parsed.hostname.replace(/^www\./, '')}${parsed.pathname}`
+      .replace(/\/+$/, '')
+      .toLowerCase();
+  } catch {
+    const normalized = normalizeText(first);
+    return normalized || undefined;
+  }
+}
+
+type ExistingProvider = {
+  razonSocial: string;
+  codigoPais: string | null;
+  codigoProveedor: string | null;
+  email: string | null;
+  telefono: string | null;
+  whatsapp: string | null;
+  website: string | null;
+};
+
+function registerProvider(
+  provider: ExistingProvider,
+  indexes: {
+    byName: Map<string, ExistingProvider>;
+    byEmail: Map<string, ExistingProvider>;
+    byContact: Map<string, ExistingProvider>;
+    byWebsite: Map<string, ExistingProvider>;
+  },
+) {
+  if (provider.codigoPais) {
+    indexes.byName.set(
+      `${provider.codigoPais}:${normalizeText(provider.razonSocial)}`,
+      provider,
+    );
+  }
+  if (provider.email)
+    indexes.byEmail.set(provider.email.toLowerCase(), provider);
+  for (const key of [
+    ...contactKeys(provider.telefono),
+    ...contactKeys(provider.whatsapp),
+  ]) {
+    indexes.byContact.set(key, provider);
+  }
+  const web = websiteKey(provider.website);
+  if (web) indexes.byWebsite.set(web, provider);
+}
+
+function findDuplicate(
+  proveedor: ProveedorImportable,
+  codigoPais: string,
+  indexes: {
+    byName: Map<string, ExistingProvider>;
+    byEmail: Map<string, ExistingProvider>;
+    byContact: Map<string, ExistingProvider>;
+    byWebsite: Map<string, ExistingProvider>;
+  },
+): ExistingProvider | undefined {
+  const byName = indexes.byName.get(
+    `${codigoPais}:${normalizeText(proveedor.razonSocial)}`,
+  );
+  if (byName) return byName;
+
+  if (proveedor.email) {
+    const byEmail = indexes.byEmail.get(proveedor.email.toLowerCase());
+    if (byEmail) return byEmail;
+  }
+
+  for (const key of [
+    ...contactKeys(proveedor.telefono),
+    ...contactKeys(proveedor.whatsapp),
+  ]) {
+    const byContact = indexes.byContact.get(key);
+    if (byContact) return byContact;
+  }
+
+  const web = websiteKey(proveedor.website);
+  return web ? indexes.byWebsite.get(web) : undefined;
 }
 
 async function generarCodigoProveedor(
@@ -126,7 +241,10 @@ async function generarCodigoProveedor(
 }
 
 async function main() {
-  const raw = process.env.SUPPLIER_IMPORT_BATCH_JSON;
+  const importFile = process.env.SUPPLIER_IMPORT_BATCH_FILE;
+  const raw = importFile
+    ? await fs.readFile(importFile, 'utf8')
+    : process.env.SUPPLIER_IMPORT_BATCH_JSON;
   if (!raw?.trim()) {
     console.log('IMPORT_RESULT []');
     return;
@@ -138,113 +256,133 @@ async function main() {
     return;
   }
 
-  const result = await prisma.$transaction(async (tx) => {
-    const rows: Array<{
-      razonSocial: string;
-      estado: 'CREATED' | 'SKIPPED';
-      codigoProveedor: string | null;
-    }> = [];
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const existing = await tx.proveedor.findMany({
+        select: {
+          razonSocial: true,
+          codigoPais: true,
+          codigoProveedor: true,
+          email: true,
+          telefono: true,
+          whatsapp: true,
+          website: true,
+        },
+      });
+      const indexes = {
+        byName: new Map<string, ExistingProvider>(),
+        byEmail: new Map<string, ExistingProvider>(),
+        byContact: new Map<string, ExistingProvider>(),
+        byWebsite: new Map<string, ExistingProvider>(),
+      };
+      for (const provider of existing) registerProvider(provider, indexes);
 
-    for (const proveedor of proveedores) {
-      const codigoPais = resolverCodigoPais(proveedor.pais);
-      if (!codigoPais) {
-        throw new Error(
-          `No se pudo identificar el país de ${proveedor.razonSocial}`,
+      const rows: Array<{
+        razonSocial: string;
+        estado: 'CREATED' | 'SKIPPED';
+        codigoProveedor: string | null;
+      }> = [];
+
+      for (const proveedor of proveedores) {
+        const codigoPais = resolverCodigoPais(proveedor.pais);
+        if (!codigoPais) {
+          throw new Error(
+            `No se pudo identificar el país de ${proveedor.razonSocial}`,
+          );
+        }
+
+        const duplicado = findDuplicate(proveedor, codigoPais, indexes);
+
+        if (duplicado) {
+          rows.push({
+            razonSocial: duplicado.razonSocial,
+            estado: 'SKIPPED',
+            codigoProveedor: duplicado.codigoProveedor,
+          });
+          continue;
+        }
+
+        const codigoProveedor = await generarCodigoProveedor(tx, codigoPais);
+        const created = await tx.proveedor.create({
+          data: {
+            codigoProveedor,
+            codigoPais,
+            razonSocial: proveedor.razonSocial,
+            pais: proveedor.pais,
+            ciudad: proveedor.ciudad,
+            direccion: proveedor.direccion,
+            distrito: proveedor.distrito,
+            rubro: proveedor.rubro,
+            subrubro: proveedor.subrubro,
+            productosComercializa: proveedor.productosComercializa,
+            personaContacto: proveedor.personaContacto,
+            website: proveedor.website,
+            redesSociales: proveedor.redesSociales,
+            comentarios: proveedor.comentarios,
+            email: proveedor.email,
+            telefono: proveedor.telefono,
+            whatsapp: proveedor.whatsapp,
+            estadoVerificacion: 'VE',
+            fechaVerificacion: new Date(),
+            fuenteVerificacion: proveedor.fuenteVerificacion,
+            fechaDiscovery: proveedor.fechaDiscovery
+              ? new Date(`${proveedor.fechaDiscovery}T00:00:00.000Z`)
+              : undefined,
+            ...(proveedor.evidenciaVerificacion !== undefined && {
+              evidenciaVerificacion: proveedor.evidenciaVerificacion,
+            }),
+            activo: true,
+          },
+          select: { razonSocial: true, codigoProveedor: true },
+        });
+
+        rows.push({
+          razonSocial: created.razonSocial,
+          estado: 'CREATED',
+          codigoProveedor: created.codigoProveedor,
+        });
+        registerProvider(
+          {
+            ...created,
+            codigoPais,
+            email: proveedor.email ?? null,
+            telefono: proveedor.telefono ?? null,
+            whatsapp: proveedor.whatsapp ?? null,
+            website: proveedor.website ?? null,
+          },
+          indexes,
         );
       }
 
-      const duplicado = await tx.proveedor.findFirst({
-        where: {
-          OR: [
-            { email: { equals: proveedor.email, mode: 'insensitive' } },
-            ...(proveedor.website
-              ? [
-                  {
-                    website: {
-                      equals: proveedor.website,
-                      mode: Prisma.QueryMode.insensitive,
-                    },
-                  },
-                ]
-              : []),
-            {
-              AND: [
-                {
-                  razonSocial: {
-                    equals: proveedor.razonSocial,
-                    mode: 'insensitive',
-                  },
-                },
-                { codigoPais },
-              ],
-            },
-          ],
-        },
-        select: { razonSocial: true, codigoProveedor: true },
-      });
+      return rows;
+    },
+    {
+      maxWait: 10_000,
+      timeout: 300_000,
+    },
+  );
 
-      if (duplicado) {
-        rows.push({
-          razonSocial: duplicado.razonSocial,
-          estado: 'SKIPPED',
-          codigoProveedor: duplicado.codigoProveedor,
-        });
-        continue;
-      }
-
-      const codigoProveedor = await generarCodigoProveedor(tx, codigoPais);
-      const created = await tx.proveedor.create({
-        data: {
-          codigoProveedor,
-          codigoPais,
-          razonSocial: proveedor.razonSocial,
-          pais: proveedor.pais,
-          ciudad: proveedor.ciudad,
-          direccion: proveedor.direccion,
-          distrito: proveedor.distrito,
-          rubro: proveedor.rubro,
-          subrubro: proveedor.subrubro,
-          productosComercializa: proveedor.productosComercializa,
-          personaContacto: proveedor.personaContacto,
-          website: proveedor.website,
-          redesSociales: proveedor.redesSociales,
-          comentarios: proveedor.comentarios,
-          email: proveedor.email,
-          telefono: proveedor.telefono,
-          whatsapp: proveedor.whatsapp,
-          estadoVerificacion: 'VE',
-          fechaVerificacion: new Date(),
-          fuenteVerificacion: proveedor.fuenteVerificacion,
-          fechaDiscovery: proveedor.fechaDiscovery
-            ? new Date(`${proveedor.fechaDiscovery}T00:00:00.000Z`)
-            : undefined,
-          ...(proveedor.evidenciaVerificacion !== undefined && {
-            evidenciaVerificacion: proveedor.evidenciaVerificacion,
-          }),
-          activo: true,
-        },
-        select: { razonSocial: true, codigoProveedor: true },
-      });
-
-      rows.push({
-        razonSocial: created.razonSocial,
-        estado: 'CREATED',
-        codigoProveedor: created.codigoProveedor,
-      });
-    }
-
-    return rows;
-  });
-
-  console.log(`IMPORT_RESULT ${JSON.stringify(result)}`);
+  const created = result.filter((row) => row.estado === 'CREATED');
+  const skipped = result.filter((row) => row.estado === 'SKIPPED');
+  console.log(
+    `IMPORT_RESULT_SUMMARY ${JSON.stringify({
+      received: result.length,
+      created: created.length,
+      skipped: skipped.length,
+      firstCreatedCode: created[0]?.codigoProveedor ?? null,
+      lastCreatedCode: created[created.length - 1]?.codigoProveedor ?? null,
+    })}`,
+  );
 }
 
-main()
-  .catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`IMPORT_ERROR ${message}`);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (require.main === module) {
+  main()
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`IMPORT_ERROR ${message}`);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
