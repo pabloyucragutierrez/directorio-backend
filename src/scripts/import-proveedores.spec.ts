@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { parseBatch } from './import-proveedores';
+import { contactKeys, parseBatch } from './import-proveedores';
 
 describe('importador de proveedores', () => {
   it('no modifica la base si no recibe un lote', () => {
@@ -59,5 +59,10 @@ describe('importador de proveedores', () => {
         ]),
       ),
     ).toThrow('se requiere teléfono, WhatsApp o email');
+  });
+
+  it('normaliza contactos internacionales de Perú y Chile', () => {
+    expect(contactKeys('+51 999 888 777')).toEqual(['999888777']);
+    expect(contactKeys('+56 9 6363 6189')).toEqual(['963636189']);
   });
 });
