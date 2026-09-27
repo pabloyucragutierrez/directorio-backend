@@ -11,6 +11,7 @@ import { CreateProductoProveedorDto } from './dto/create-producto-proveedor.dto'
 import { UploadService } from '../upload/upload.service';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { formarCodigoProveedor, resolverCodigoPais } from './codigo-proveedor';
 
 function removeDiacritics(value: string) {
   return value.normalize('NFD').replace(/\p{Diacritic}/gu, '');
@@ -27,6 +28,47 @@ export class ProveedoresService {
     private uploadService: UploadService,
   ) {}
 
+  private obtenerCodigoPais(pais: string): string {
+    const codigoPais = resolverCodigoPais(pais);
+
+    if (!codigoPais) {
+      throw new BadRequestException(
+        `No se pudo identificar el código ISO de país para "${pais}"`,
+      );
+    }
+
+    return codigoPais;
+  }
+
+  private async generarCodigoProveedor(
+    tx: Prisma.TransactionClient,
+    codigoPais: string,
+  ): Promise<string> {
+    const secuencias = await tx.$queryRaw<{ ultimoNumero: number }[]>`
+      INSERT INTO "SecuenciaProveedorPais" (
+        "codigoPais",
+        "ultimoNumero",
+        "createdAt",
+        "updatedAt"
+      )
+      VALUES (${codigoPais}, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT ("codigoPais") DO UPDATE
+      SET
+        "ultimoNumero" = "SecuenciaProveedorPais"."ultimoNumero" + 1,
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "SecuenciaProveedorPais"."ultimoNumero" < 99999999
+      RETURNING "ultimoNumero"
+    `;
+
+    if (!secuencias[0]) {
+      throw new ConflictException(
+        `Se agotó la numeración disponible para el país ${codigoPais}`,
+      );
+    }
+
+    return formarCodigoProveedor(codigoPais, secuencias[0].ultimoNumero);
+  }
+
   async create(
     dto: CreateProveedorDto,
     files: {
@@ -36,6 +78,7 @@ export class ProveedoresService {
     },
   ) {
     const dtoRest = dto as any;
+    const codigoPais = this.obtenerCodigoPais(dto.pais);
 
     if (
       (dtoRest.usuarioAcceso && !dtoRest.passwordAcceso) ||
@@ -85,14 +128,27 @@ export class ProveedoresService {
       ? await bcrypt.hash(dtoRest.passwordAcceso, 10)
       : undefined;
 
-    return this.prisma.proveedor.create({
-      data: {
-        ...dtoRest,
-        ...(passwordHash && { passwordAcceso: passwordHash }),
-        copiaRucUrl,
-        copiaLicenciaUrl,
-        copiaDniUrl,
-      },
+    const estadoVerificacion = dto.estadoVerificacion ?? 'NV';
+    const fechaVerificacion =
+      dto.fechaVerificacion ??
+      (estadoVerificacion === 'VE' ? new Date() : undefined);
+
+    return this.prisma.$transaction(async (tx) => {
+      const codigoProveedor = await this.generarCodigoProveedor(tx, codigoPais);
+
+      return tx.proveedor.create({
+        data: {
+          ...dtoRest,
+          codigoProveedor,
+          codigoPais,
+          estadoVerificacion,
+          fechaVerificacion,
+          ...(passwordHash && { passwordAcceso: passwordHash }),
+          copiaRucUrl,
+          copiaLicenciaUrl,
+          copiaDniUrl,
+        },
+      });
     });
   }
 
@@ -102,6 +158,7 @@ export class ProveedoresService {
         ? {
             OR: [
               { razonSocial: { contains: search, mode: 'insensitive' } },
+              { codigoProveedor: { contains: search, mode: 'insensitive' } },
               { pais: { contains: search, mode: 'insensitive' } },
               { rubro: { contains: search, mode: 'insensitive' } },
               { ruc: { contains: search } },
@@ -133,6 +190,7 @@ export class ProveedoresService {
       ? {
           OR: [
             { razonSocial: { contains: search, mode: 'insensitive' } },
+            { codigoProveedor: { contains: search, mode: 'insensitive' } },
             { pais: { contains: search, mode: 'insensitive' } },
             { rubro: { contains: search, mode: 'insensitive' } },
             { ruc: { contains: search } },
@@ -220,6 +278,7 @@ export class ProveedoresService {
       conditions.push(
         Prisma.sql`(
           ${Prisma.raw(normCol('p."razonSocial"'))} LIKE '%' || ${normalizedSearch} || '%'
+          OR lower(p."codigoProveedor") LIKE '%' || ${normalizedSearch} || '%'
           OR ${Prisma.raw(normCol('p."pais"'))} LIKE '%' || ${normalizedSearch} || '%'
           OR ${Prisma.raw(normCol('p."rubro"'))} LIKE '%' || ${normalizedSearch} || '%'
           OR ${Prisma.raw(normCol('p."ciudad"'))} LIKE '%' || ${normalizedSearch} || '%'
@@ -274,9 +333,11 @@ export class ProveedoresService {
       orderBy: { id: 'desc' },
       select: {
         id: true,
+        codigoProveedor: true,
         razonSocial: true,
         pais: true,
         rubro: true,
+        estadoVerificacion: true,
         activo: true,
         pedidos: {
           select: {
@@ -324,7 +385,9 @@ export class ProveedoresService {
   async getCiudades(pais?: string) {
     const rows = await this.prisma.proveedor.findMany({
       where: {
-        ...(pais?.trim() ? { pais: { equals: pais.trim(), mode: 'insensitive' } } : {}),
+        ...(pais?.trim()
+          ? { pais: { equals: pais.trim(), mode: 'insensitive' } }
+          : {}),
       },
       select: { ciudad: true },
       distinct: ['ciudad'],
@@ -354,7 +417,7 @@ export class ProveedoresService {
       copiaDni?: Express.Multer.File[];
     },
   ) {
-    await this.findOne(id);
+    const proveedorActual = await this.findOne(id);
 
     const copiaRucUrl = files?.copiaRuc?.[0]
       ? await this.uploadService.uploadFile(
@@ -386,6 +449,44 @@ export class ProveedoresService {
 
     if (dtoRest.passwordAcceso) {
       data.passwordAcceso = await bcrypt.hash(dtoRest.passwordAcceso, 10);
+    }
+
+    let codigoPais = proveedorActual.codigoPais;
+
+    if (dto.pais !== undefined) {
+      const nuevoCodigoPais = this.obtenerCodigoPais(dto.pais);
+
+      if (codigoPais && nuevoCodigoPais !== codigoPais) {
+        throw new BadRequestException(
+          'No se puede cambiar el país porque forma parte del código permanente del proveedor',
+        );
+      }
+
+      codigoPais = nuevoCodigoPais;
+    } else if (!codigoPais) {
+      codigoPais = resolverCodigoPais(proveedorActual.pais);
+    }
+
+    if (
+      dto.estadoVerificacion === 'VE' &&
+      !dto.fechaVerificacion &&
+      !proveedorActual.fechaVerificacion
+    ) {
+      data.fechaVerificacion = new Date();
+    }
+
+    if (!proveedorActual.codigoProveedor && codigoPais) {
+      return this.prisma.$transaction(async (tx) => {
+        const codigoProveedor = await this.generarCodigoProveedor(
+          tx,
+          codigoPais,
+        );
+
+        return tx.proveedor.update({
+          where: { id },
+          data: { ...data, codigoPais, codigoProveedor },
+        });
+      });
     }
 
     return this.prisma.proveedor.update({ where: { id }, data });

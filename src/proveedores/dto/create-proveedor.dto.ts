@@ -1,12 +1,26 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsDate,
   IsString,
   IsEmail,
   IsBoolean,
+  IsIn,
+  IsObject,
   IsOptional,
   MinLength,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { ESTADOS_VERIFICACION } from '../codigo-proveedor';
+
+function parseJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
 
 export class CreateProveedorDto {
   @ApiProperty({ example: 'Importaciones XYZ S.A.' })
@@ -50,6 +64,28 @@ export class CreateProveedorDto {
   @IsOptional()
   @IsString()
   subrubro?: string;
+
+  @ApiPropertyOptional({
+    description: 'Productos o categorías que comercializa el proveedor',
+  })
+  @IsOptional()
+  @IsString()
+  productosComercializa?: string;
+
+  @ApiPropertyOptional({ description: 'Persona de contacto comercial' })
+  @IsOptional()
+  @IsString()
+  personaContacto?: string;
+
+  @ApiPropertyOptional({ example: 'https://proveedor.example' })
+  @IsOptional()
+  @IsString()
+  website?: string;
+
+  @ApiPropertyOptional({ description: 'Enlaces a redes sociales' })
+  @IsOptional()
+  @IsString()
+  redesSociales?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -112,6 +148,54 @@ export class CreateProveedorDto {
   @IsString()
   @Transform(({ value }) => (value === '' ? undefined : value))
   comentarios?: string;
+
+  @ApiPropertyOptional({
+    enum: ESTADOS_VERIFICACION,
+    default: 'NV',
+    description:
+      'VE=verificado, NV=no verificado, NF=no encontrado, IN=inferido',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @IsIn(ESTADOS_VERIFICACION)
+  estadoVerificacion?: (typeof ESTADOS_VERIFICACION)[number];
+
+  @ApiPropertyOptional({
+    example: '2026-09-27T18:00:00.000Z',
+    description: 'Fecha y hora de la verificación',
+  })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  fechaVerificacion?: Date;
+
+  @ApiPropertyOptional({
+    description: 'Fuente o fuentes utilizadas para la verificación',
+  })
+  @IsOptional()
+  @IsString()
+  fuenteVerificacion?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-09-27',
+    description: 'Fecha de captación inicial del proveedor',
+  })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  fechaDiscovery?: Date;
+
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
+    description: 'Evidencia y estado de verificación por cada campo importado',
+  })
+  @IsOptional()
+  @Transform(({ value }) => parseJson(value))
+  @IsObject()
+  evidenciaVerificacion?: Record<string, unknown>;
 
   // Campos de acceso (legacy). Ya no son obligatorios para crear un proveedor.
   @ApiPropertyOptional({ example: 'IMPO-123456' })

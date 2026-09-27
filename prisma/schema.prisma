@@ -8,53 +8,71 @@ datasource db {
 }
 
 model User {
-  id          Int       @id @default(autoincrement())
+  id          Int        @id @default(autoincrement())
   nombre      String
-  email       String    @unique
+  email       String     @unique
   password    String
-  activo      Boolean   @default(true)
-  rol         String    @default("administrador")
+  activo      Boolean    @default(true)
+  rol         String     @default("administrador")
   proveedorId Int?
   proveedor   Proveedor? @relation(fields: [proveedorId], references: [id])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
 
 model Proveedor {
-  id               Int      @id @default(autoincrement())
-  razonSocial      String
-  pais             String
-  ciudad           String
-  direccion        String?
-  distrito         String?
-  codigoPostal     String?
-  referencia       String?
-  rubro            String?
-  subrubro         String?
-  comentarios      String?
-  entrega          Boolean? @default(false)
-  email            String?
-  ruc              String?
-  licencia         String?
-  copiaRucUrl      String?
-  copiaLicenciaUrl String?
-  telefono         String?
-  whatsapp         String?
-  formaPago        String?
-  datosPago        String?
-  representante    String?
-  dni              String?
-  telefonoRep      String?
-  copiaDniUrl      String?
-  activo           Boolean  @default(true)
-  usuarioAcceso    String?  @unique
-  passwordAcceso   String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                    Int       @id @default(autoincrement())
+  codigoProveedor       String?   @unique @db.VarChar(10)
+  codigoPais            String?   @db.VarChar(2)
+  razonSocial           String
+  pais                  String
+  ciudad                String
+  direccion             String?
+  distrito              String?
+  codigoPostal          String?
+  referencia            String?
+  rubro                 String?
+  subrubro              String?
+  productosComercializa String?   @db.Text
+  personaContacto       String?   @db.VarChar(255)
+  website               String?   @db.Text
+  redesSociales         String?   @db.Text
+  comentarios           String?
+  entrega               Boolean?  @default(false)
+  email                 String?
+  ruc                   String?
+  licencia              String?
+  copiaRucUrl           String?
+  copiaLicenciaUrl      String?
+  telefono              String?
+  whatsapp              String?
+  formaPago             String?
+  datosPago             String?
+  representante         String?
+  dni                   String?
+  telefonoRep           String?
+  copiaDniUrl           String?
+  estadoVerificacion    String    @default("NV") @db.VarChar(2)
+  fechaVerificacion     DateTime? @db.Timestamptz(3)
+  fuenteVerificacion    String?   @db.Text
+  fechaDiscovery        DateTime? @db.Date
+  evidenciaVerificacion Json?
+  activo                Boolean   @default(true)
+  usuarioAcceso         String?   @unique
+  passwordAcceso        String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   pedidos   Pedido[]
   productos ProductoProveedor[]
   usuarios  User[]
+}
+
+model SecuenciaProveedorPais {
+  codigoPais   String   @id @db.VarChar(2)
+  ultimoNumero Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model ProductoProveedor {
