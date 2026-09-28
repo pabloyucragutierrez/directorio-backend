@@ -46,6 +46,28 @@ BEGIN
 
   LOCK TABLE "Proveedor" IN SHARE ROW EXCLUSIVE MODE;
 
+  CREATE TEMP TABLE "ParaguayProveedorCoincidencia"
+  ON COMMIT DROP
+  AS
+  SELECT
+    regexp_replace(
+      translate(lower(trim(p."razonSocial")), 'áéíóúüñãõç', 'aeiouunaoc'),
+      '[^a-z0-9]+',
+      '',
+      'g'
+    ) AS "nameKey",
+    array_agg(p."id" ORDER BY p."id") AS "ids"
+  FROM "Proveedor" p
+  WHERE (
+    p."codigoPais" = 'PY'
+    OR p."codigoProveedor" LIKE 'PY%'
+    OR translate(lower(trim(p."pais")), 'áéíóúüñãõç', 'aeiouunaoc') = 'paraguay'
+  )
+  GROUP BY 1;
+
+  CREATE UNIQUE INDEX "ParaguayProveedorCoincidencia_nameKey_key"
+  ON "ParaguayProveedorCoincidencia" ("nameKey");
+
   INSERT INTO "CargaProveedorAuditoria" (
     "runId", "pais", "filasFuente", "proveedoresPayload", "detalle", "createdAt", "updatedAt"
   ) VALUES (
@@ -95,20 +117,10 @@ BEGIN
       'g'
     );
 
-    SELECT array_agg(p."id" ORDER BY p."id")
+    SELECT existing."ids"
     INTO matched_ids
-    FROM "Proveedor" p
-    WHERE (
-      p."codigoPais" = 'PY'
-      OR p."codigoProveedor" LIKE 'PY%'
-      OR translate(lower(trim(p."pais")), 'áéíóúüñãõç', 'aeiouunaoc') = 'paraguay'
-    )
-    AND regexp_replace(
-      translate(lower(trim(p."razonSocial")), 'áéíóúüñãõç', 'aeiouunaoc'),
-      '[^a-z0-9]+',
-      '',
-      'g'
-    ) = candidate_name_key;
+    FROM "ParaguayProveedorCoincidencia" existing
+    WHERE existing."nameKey" = candidate_name_key;
 
     IF COALESCE(cardinality(matched_ids), 0) > 1 THEN
       conflict_count := conflict_count + 1;

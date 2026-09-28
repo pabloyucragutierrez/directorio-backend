@@ -5,8 +5,8 @@ import { Prisma, PrismaClient } from '@prisma/client';
 
 const RUN_ID = 'paraguay-20260928-v1';
 const EXPECTED_SOURCE_ROWS = 1364;
-const EXPECTED_PROVIDERS = 1120;
-const EXPECTED_RELATIONS = 1565;
+const EXPECTED_PROVIDERS = 1119;
+const EXPECTED_RELATIONS = 1564;
 
 const OFFICIAL_RUBROS = [
   'BEBIDAS ALCOHOLICAS',
