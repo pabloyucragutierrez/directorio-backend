@@ -204,8 +204,8 @@ BEGIN
         "comentarios" = CASE
           WHEN NULLIF(trim("comentarios"), '') IS NULL THEN NULLIF(candidate->>'comentarios', '')
           WHEN NULLIF(candidate->>'comentarios', '') IS NULL THEN "comentarios"
-          WHEN position(candidate->>'comentarios' in "comentarios") > 0 THEN "comentarios"
-          ELSE "comentarios" || ' | ' || candidate->>'comentarios'
+          WHEN position((candidate->>'comentarios') in "comentarios") > 0 THEN "comentarios"
+          ELSE "comentarios" || ' | ' || (candidate->>'comentarios')
         END,
         "telefono" = COALESCE(NULLIF(trim("telefono"), ''), NULLIF(candidate->>'telefono', '')),
         "whatsapp" = COALESCE(NULLIF(trim("whatsapp"), ''), NULLIF(candidate->>'whatsapp', '')),
