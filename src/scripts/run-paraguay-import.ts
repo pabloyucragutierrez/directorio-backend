@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { gunzipSync } from 'node:zlib';
 import { Prisma, PrismaClient } from '@prisma/client';
 
 const RUN_ID = 'paraguay-20260928-v1';
@@ -245,11 +246,34 @@ async function inspectImport(
 
 async function main(): Promise<void> {
   const mode = importMode();
-  const sqlPath = path.resolve(
-    process.cwd(),
-    'prisma/imports/paraguay-20260928.sql',
-  );
-  const sql = await fs.readFile(sqlPath, 'utf8');
+  const importDirectory = path.resolve(process.cwd(), 'prisma/imports');
+  const [template, compressedPayload] = await Promise.all([
+    fs.readFile(
+      path.join(importDirectory, 'paraguay-20260928.template.sql'),
+      'utf8',
+    ),
+    fs.readFile(
+      path.join(importDirectory, 'paraguay-20260928.payload.json.gz.b64'),
+      'utf8',
+    ),
+  ]);
+  const payloadJson = gunzipSync(
+    Buffer.from(compressedPayload.trim(), 'base64'),
+  ).toString('utf8');
+  const payload: unknown = JSON.parse(payloadJson);
+  if (!Array.isArray(payload) || payload.length !== EXPECTED_PROVIDERS) {
+    throw new Error(
+      'El payload comprimido de Paraguay no superó la validación',
+    );
+  }
+
+  const marker = '__PARAGUAY_PAYLOAD_JSON__';
+  if (template.split(marker).length !== 2) {
+    throw new Error(
+      'La plantilla SQL no contiene un único marcador de payload',
+    );
+  }
+  const sql = template.replace(marker, payloadJson);
   const prisma = new PrismaClient();
 
   try {
