@@ -19,7 +19,7 @@ const OFFICIAL_RUBROS = [
   'TRANSPORTE, TAXIS, DELIVERY Y COURIER',
 ] as const;
 
-type ImportMode = 'dry-run' | 'apply';
+type ImportMode = 'dry-run' | 'apply' | 'verify';
 
 type AuditRow = {
   filasFuente: number;
@@ -68,10 +68,8 @@ class DryRunRollback extends Error {
 
 function importMode(): ImportMode {
   const mode = process.env.PARAGUAY_IMPORT_MODE;
-  if (mode !== 'dry-run' && mode !== 'apply') {
-    throw new Error(
-      'PARAGUAY_IMPORT_MODE debe ser exactamente dry-run o apply',
-    );
+  if (mode !== 'dry-run' && mode !== 'apply' && mode !== 'verify') {
+    throw new Error('PARAGUAY_IMPORT_MODE debe ser dry-run, apply o verify');
   }
   return mode;
 }
@@ -279,7 +277,9 @@ async function main(): Promise<void> {
   try {
     const summary = await prisma.$transaction(
       async (tx) => {
-        await tx.$executeRawUnsafe(sql);
+        if (mode !== 'verify') {
+          await tx.$executeRawUnsafe(sql);
+        }
         const result = await inspectImport(tx);
         validateSummary(result);
 
@@ -291,7 +291,11 @@ async function main(): Promise<void> {
       { maxWait: 30_000, timeout: 300_000 },
     );
 
-    console.log(`PARAGUAY_IMPORT_APPLIED=${JSON.stringify(summary)}`);
+    const event =
+      mode === 'verify'
+        ? 'PARAGUAY_IMPORT_VERIFIED'
+        : 'PARAGUAY_IMPORT_APPLIED';
+    console.log(`${event}=${JSON.stringify(summary)}`);
   } catch (error) {
     if (error instanceof DryRunRollback) {
       console.log(
