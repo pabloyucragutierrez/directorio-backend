@@ -482,3 +482,5 @@ void main().catch((error: unknown) => {
   console.error('BOLIVIA_AUDIT_FAILED', error);
   process.exitCode = 1;
 });
+
+// Activador temporal de auditoría de solo lectura.
