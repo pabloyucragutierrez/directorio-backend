@@ -1,3 +1,4 @@
+// Disparador Railway: prueba seca Bolivia 2026-10-02
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Prisma, PrismaClient } from '@prisma/client';
