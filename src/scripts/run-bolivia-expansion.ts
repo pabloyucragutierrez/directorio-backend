@@ -1121,6 +1121,38 @@ async function runWrite(
 }
 
 function emit(label: string, result: unknown): void {
+  if (
+    result &&
+    typeof result === 'object' &&
+    'actions' in result &&
+    Array.isArray((result as RunResult).actions)
+  ) {
+    const run = result as RunResult;
+    const statusCounts = Object.fromEntries(
+      [...new Set(run.actions.map((action) => action.status))].map((status) => [
+        status,
+        run.actions.filter((action) => action.status === status).length,
+      ]),
+    );
+    console.log(
+      `BOLIVIA_EXPANSION_${label}_SUMMARY=${JSON.stringify({
+        mode: run.mode,
+        candidates: run.actions.length,
+        statusCounts,
+        before: run.before,
+        after: run.after,
+      })}`,
+    );
+    for (const action of run.actions) {
+      console.log(
+        `BOLIVIA_EXPANSION_${label}_ACTION=${JSON.stringify(action)}`,
+      );
+    }
+    console.log(
+      `BOLIVIA_EXPANSION_${label}_CATEGORIES=${JSON.stringify(run.categories)}`,
+    );
+    return;
+  }
   console.log(
     `BOLIVIA_EXPANSION_${label}=${JSON.stringify(
       result,
