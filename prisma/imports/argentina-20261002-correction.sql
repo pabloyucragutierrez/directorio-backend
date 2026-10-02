@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS "RubroCatalogo" (
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- STATEMENT_BREAK
 CREATE TABLE IF NOT EXISTS "SubrubroCatalogo" (
   "codigo" VARCHAR(5) PRIMARY KEY,
   "codigoRubro" VARCHAR(2) NOT NULL,
@@ -19,10 +20,12 @@ CREATE TABLE IF NOT EXISTS "SubrubroCatalogo" (
     ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
+-- STATEMENT_BREAK
 ALTER TABLE "ProveedorRubro"
   ADD COLUMN IF NOT EXISTS "codigoRubro" VARCHAR(2),
   ADD COLUMN IF NOT EXISTS "codigoSubrubro" VARCHAR(5);
 
+-- STATEMENT_BREAK
 INSERT INTO "RubroCatalogo" ("codigo", "nombre") VALUES
   ('BA', 'BEBIDAS ALCOHOLICAS'),
   ('BF', 'BEBIDAS FRIAS'),
@@ -39,6 +42,7 @@ ON CONFLICT ("codigo") DO UPDATE SET
   "activo" = true,
   "updatedAt" = CURRENT_TIMESTAMP;
 
+-- STATEMENT_BREAK
 INSERT INTO "SubrubroCatalogo" ("codigo", "codigoRubro", "nombre") VALUES
   ('BA001', 'BA', 'CERVEZA'),
   ('BA002', 'BA', 'ESPUMANTES'),
@@ -101,6 +105,7 @@ ON CONFLICT ("codigo") DO UPDATE SET
   "activo" = true,
   "updatedAt" = CURRENT_TIMESTAMP;
 
+-- STATEMENT_BREAK
 WITH argentina AS (
   SELECT p."id"
   FROM "Proveedor" p
@@ -178,6 +183,7 @@ WHERE pr."proveedorId" = a."id"
   AND pr."rubro" = m."rubroAnterior"
   AND pr."subrubro" = m."subrubro";
 
+-- STATEMENT_BREAK
 WITH argentina AS (
   SELECT p."id"
   FROM "Proveedor" p
@@ -198,6 +204,7 @@ WHERE p."id" = a."id"
   AND pr."proveedorId" = p."id"
   AND pr."esPrincipal";
 
+-- STATEMENT_BREAK
 WITH argentina AS (
   SELECT p.*
   FROM "Proveedor" p
@@ -262,6 +269,7 @@ SET
 FROM candidates c
 WHERE p."id" = c."id";
 
+-- STATEMENT_BREAK
 UPDATE "Proveedor" p
 SET
   "activo" = false,
@@ -290,13 +298,17 @@ WHERE p."codigoProveedor" IN ('AR00000258', 'AR00000379')
   AND NULLIF(trim(COALESCE(p."fuenteVerificacion", '')), '') IS NULL
   AND NULLIF(trim(COALESCE(p."productosComercializa", '')), '') IS NULL;
 
+-- STATEMENT_BREAK
 CREATE INDEX IF NOT EXISTS "SubrubroCatalogo_codigoRubro_idx"
   ON "SubrubroCatalogo"("codigoRubro");
+-- STATEMENT_BREAK
 CREATE INDEX IF NOT EXISTS "ProveedorRubro_codigoRubro_idx"
   ON "ProveedorRubro"("codigoRubro");
+-- STATEMENT_BREAK
 CREATE INDEX IF NOT EXISTS "ProveedorRubro_codigoSubrubro_idx"
   ON "ProveedorRubro"("codigoSubrubro");
 
+-- STATEMENT_BREAK
 DO $constraints$
 BEGIN
   IF NOT EXISTS (

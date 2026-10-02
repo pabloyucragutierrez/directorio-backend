@@ -280,7 +280,15 @@ async function main(): Promise<void> {
   try {
     const result = await prisma.$transaction(
       async (tx) => {
-        if (selectedMode === 'dry-run') await tx.$executeRawUnsafe(sql);
+        if (selectedMode === 'dry-run') {
+          const statements = sql
+            .split(/^-- STATEMENT_BREAK$/m)
+            .map((statement) => statement.trim())
+            .filter(Boolean);
+          for (const statement of statements) {
+            await tx.$executeRawUnsafe(statement);
+          }
+        }
         const inspected = await inspect(tx);
         validate(inspected);
         if (selectedMode === 'dry-run') throw new DryRunRollback(inspected);
