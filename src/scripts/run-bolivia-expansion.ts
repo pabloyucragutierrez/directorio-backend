@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 
+// Ejecución autorizada: corrección y ampliación Bolivia, 2026-10-02.
 const prisma = new PrismaClient();
 
 type Mode = 'dry-run' | 'apply' | 'verify';
