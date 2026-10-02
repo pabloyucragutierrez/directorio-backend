@@ -15,6 +15,7 @@ type Category = {
 
 type Candidate = {
   razonSocial: string;
+  codigoProveedorExistenteConfirmado?: string;
   ciudad: string;
   direccion?: string;
   telefono?: string;
@@ -207,6 +208,7 @@ const candidates: Candidate[] = [
   },
   {
     razonSocial: 'Bodegas Aranjuez',
+    codigoProveedorExistenteConfirmado: 'BO00000237',
     ciudad: 'Tarija',
     direccion: 'Av. Ángel Baldivieso #1976, Barrio Aranjuez',
     telefono: '+591 6642552',
@@ -851,7 +853,25 @@ async function applyCandidate(
   candidate: Candidate,
   existing: ExistingProvider[],
 ): Promise<Action> {
-  const match = findMatch(candidate, buildIndexes(existing));
+  const confirmed = candidate.codigoProveedorExistenteConfirmado
+    ? existing.find(
+        (provider) =>
+          provider.codigoProveedor ===
+          candidate.codigoProveedorExistenteConfirmado,
+      )
+    : undefined;
+  if (candidate.codigoProveedorExistenteConfirmado && !confirmed) {
+    throw new Error(
+      `${candidate.razonSocial}: no existe el código confirmado ${candidate.codigoProveedorExistenteConfirmado}`,
+    );
+  }
+  const match: Match = confirmed
+    ? {
+        kind: 'MATCH',
+        provider: confirmed,
+        reason: 'razon-social-y-marca-confirmadas',
+      }
+    : findMatch(candidate, buildIndexes(existing));
   if (match.kind === 'CONFLICT') {
     return {
       razonSocial: candidate.razonSocial,
