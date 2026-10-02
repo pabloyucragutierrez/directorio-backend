@@ -70,23 +70,53 @@ model Proveedor {
 }
 
 model ProveedorRubro {
-  id                    Int       @id @default(autoincrement())
+  id                    Int               @id @default(autoincrement())
   proveedorId           Int
-  proveedor             Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  proveedor             Proveedor         @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
   rubro                 String
-  subrubro              String    @default("")
-  productosComercializa String?   @db.Text
-  fuenteVerificacion    String?   @db.Text
+  subrubro              String            @default("")
+  codigoRubro           String?           @db.VarChar(2)
+  codigoSubrubro        String?           @db.VarChar(5)
+  rubroCatalogo         RubroCatalogo?    @relation(fields: [codigoRubro], references: [codigo], onDelete: Restrict, onUpdate: Cascade)
+  subrubroCatalogo      SubrubroCatalogo? @relation(fields: [codigoSubrubro], references: [codigo], onDelete: Restrict, onUpdate: Cascade)
+  productosComercializa String?           @db.Text
+  fuenteVerificacion    String?           @db.Text
   evidenciaVerificacion Json?
-  esPrincipal           Boolean   @default(false)
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  esPrincipal           Boolean           @default(false)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
   @@unique([proveedorId, rubro, subrubro])
   @@index([proveedorId])
   @@index([rubro])
   @@index([subrubro])
   @@index([rubro, subrubro])
+  @@index([codigoRubro])
+  @@index([codigoSubrubro])
+}
+
+model RubroCatalogo {
+  codigo      String             @id @db.VarChar(2)
+  nombre      String             @unique @db.VarChar(100)
+  activo      Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @default(now()) @updatedAt
+  subrubros   SubrubroCatalogo[]
+  proveedores ProveedorRubro[]
+}
+
+model SubrubroCatalogo {
+  codigo      String           @id @db.VarChar(5)
+  codigoRubro String           @db.VarChar(2)
+  nombre      String           @db.VarChar(150)
+  activo      Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now()) @updatedAt
+  rubro       RubroCatalogo    @relation(fields: [codigoRubro], references: [codigo], onDelete: Restrict, onUpdate: Cascade)
+  proveedores ProveedorRubro[]
+
+  @@unique([codigoRubro, nombre])
+  @@index([codigoRubro])
 }
 
 model SecuenciaProveedorPais {
