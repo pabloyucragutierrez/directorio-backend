@@ -12,6 +12,7 @@ ON CONFLICT ("codigo") DO UPDATE SET
   "activo" = true,
   "updatedAt" = CURRENT_TIMESTAMP;
 
+-- STATEMENT_BREAK
 WITH bolivia AS (
   SELECT p."id"
   FROM "Proveedor" p
@@ -67,6 +68,7 @@ WHERE pr."proveedorId" = b."id"
   AND upper(trim(pr."rubro")) = m."rubroAnterior"
   AND upper(trim(pr."subrubro")) = m."subrubroAnterior";
 
+-- STATEMENT_BREAK
 WITH bolivia AS (
   SELECT p."id"
   FROM "Proveedor" p
@@ -87,6 +89,7 @@ WHERE p."id" = b."id"
   AND pr."proveedorId" = p."id"
   AND pr."esPrincipal";
 
+-- STATEMENT_BREAK
 UPDATE "Proveedor" p
 SET
   "evidenciaVerificacion" = jsonb_set(
@@ -108,6 +111,7 @@ WHERE p."codigoProveedor" IN (
   'BO00000065'
 );
 
+-- STATEMENT_BREAK
 UPDATE "Proveedor" p
 SET
   "activo" = false,
