@@ -64,7 +64,15 @@ type Action = {
   matchReason: string;
   relationsCreated: number;
   relationsUpdated: number;
-  conflictCodes?: Array<string | null>;
+  conflictProviders?: Array<{
+    codigoProveedor: string | null;
+    razonSocial: string;
+    ciudad: string;
+    telefono: string | null;
+    whatsapp: string | null;
+    email: string | null;
+    website: string | null;
+  }>;
 };
 
 type Summary = {
@@ -852,9 +860,15 @@ async function applyCandidate(
       matchReason: match.reason,
       relationsCreated: 0,
       relationsUpdated: 0,
-      conflictCodes: match.providers.map(
-        (provider) => provider.codigoProveedor,
-      ),
+      conflictProviders: match.providers.map((provider) => ({
+        codigoProveedor: provider.codigoProveedor,
+        razonSocial: provider.razonSocial,
+        ciudad: provider.ciudad,
+        telefono: provider.telefono,
+        whatsapp: provider.whatsapp,
+        email: provider.email,
+        website: provider.website,
+      })),
     };
   }
 
